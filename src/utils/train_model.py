@@ -5,8 +5,9 @@ import numpy as np
 
 # Import functions
 from data.dataloader import *
+from data.chunk_data import chunk_data
 from utils.train_test_loops import *
-from utils.train_test_split import train_test_split_sites
+from utils.train_test_split import train_test_split_chunks
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -29,9 +30,11 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     - train_mean (array): Mean values used for normalizing the training data, to be reused in model testing.
     - train_std (array): Standard deviation values used for normalizing the training data, to be reused in model testing.
     """
+    data = chunk_data(data)
+    data = data.dropna(subset=["chunk_id"])
 
     # Separate train-val split
-    data_train, data_val, sites_train, sites_val = train_test_split_sites(data)
+    data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data)
 
     # Calculate mean and standard deviation to normalize the data
     train_mean, train_std = compute_center(data_train)
@@ -44,8 +47,8 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,
     # we cannot load several sites per batch
-    train_dl = DataLoader(train_ds, batch_size = 1, shuffle = True)
-    val_dl = DataLoader(val_ds, batch_size = 1, shuffle = True)
+    train_dl = DataLoader(train_ds, batch_size = 4, shuffle = True)
+    val_dl = DataLoader(val_ds, batch_size = 4, shuffle = True)
 
     
     # Start recording loss (MSE) after each epoch, initialise at Inf
@@ -121,7 +124,7 @@ def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, 
     """
 
     # Separate train-val split
-    data_train, data_val, sites_train, sites_val = train_test_split_sites(data)
+    data_train, data_val, sites_train, sites_val = train_test_split_chunks(data)
 
     # Separate categorical variables into train-val
     data_cat_train = data_cat.loc[[any(site == s for s in sites_train) for site in data_cat.index]]

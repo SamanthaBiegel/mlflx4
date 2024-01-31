@@ -5,6 +5,7 @@
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import r2_score
+from tqdm import tqdm
 
 def train_loop(dataloader, model, optimizer, DEVICE):
 
@@ -14,6 +15,8 @@ def train_loop(dataloader, model, optimizer, DEVICE):
 
     # Set model to training mode (activates dropout, batch normalization, etc, if present)
     model.train()
+
+    n_batches = len(dataloader)
 
     # Loop over all training sites
     for x, y, mask in dataloader:
@@ -46,8 +49,10 @@ def train_loop(dataloader, model, optimizer, DEVICE):
     # Set model to evaluation mode (deactivate droptou, etc)
     model.eval()
 
+    print(f"Train loss: {train_loss/n_batches:.4f} | Train R2: {train_r2/n_batches:.4f}")
+
     # Return computed training loss
-    return train_loss, train_r2
+    return train_loss/n_batches, train_r2/n_batches
 
 
 
@@ -132,11 +137,11 @@ def test_loop(dataloader, model, DEVICE):
             y_pred = y_pred.detach().cpu().numpy()
 
             # Get mask as a Boolean list, from the torch tensor given by the data loader
-            mask = mask.numpy()[0]
+            # mask = mask.numpy()[0]
 
             # Compute R2 on non-imputed testing data
-            test_r2 += r2_score(y_true = y.detach().cpu().numpy()[mask],
-                               y_pred = y_pred[mask])
+            test_r2 += r2_score(y_true = y.detach().cpu().numpy()[mask.squeeze()].flatten(),
+                               y_pred = y_pred[mask.squeeze()].flatten())
             
             n_sites += 1  # Increase counter
             
