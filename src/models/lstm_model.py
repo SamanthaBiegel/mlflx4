@@ -12,7 +12,7 @@ class ModelCond(nn.Module):
         super().__init__()
 
         # LSTM layer for sequence processing
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=2, dropout=0.3)
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=2, dropout=0.3, batch_first=True)
 
         # Categorical features are used (vegetation class and land use), concatenated to the hidden state
         self.fc1 = nn.Sequential(
@@ -54,7 +54,7 @@ class Model(nn.Module):
         super().__init__()
 
         # LSTM layer for sequence processing
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=2, dropout=0.3)
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=2, dropout=0.3, batch_first=True)
 
         # Fully connected layers for feature processing
         self.fc1 = nn.Sequential(

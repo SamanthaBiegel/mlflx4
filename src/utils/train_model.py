@@ -47,8 +47,8 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,
     # we cannot load several sites per batch
-    train_dl = DataLoader(train_ds, batch_size = 1, shuffle = True)
-    val_dl = DataLoader(val_ds, batch_size = 1, shuffle = True)
+    train_dl = DataLoader(train_ds, batch_size = 4, shuffle = True)
+    val_dl = DataLoader(val_ds, batch_size = 4, shuffle = True)
 
     
     # Start recording loss (MSE) after each epoch, initialise at Inf
