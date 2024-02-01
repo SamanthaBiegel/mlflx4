@@ -26,14 +26,12 @@ def train_test_split_chunks(df):
     grouped = df.groupby('chunk_id').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
 
     # Discretize numerical columns into bins
-    grouped['TA_F_MDS_bins'] = pd.cut(grouped['TA_F_MDS'], bins=2, labels=False)
-    grouped['ai_bins'] = pd.cut(grouped['ai'], bins=2, labels=False)
+    grouped['TA_F_MDS_bins'] = pd.qcut(grouped['TA_F_MDS'], 2, labels=False)
+    grouped['ai_bins'] = pd.qcut(grouped['ai'], 2, labels=False)
 
     # Combine discretized columns into a single categorical column for stratification
     grouped['combined_target'] = grouped['TA_F_MDS_bins'].astype(str) + '_' + grouped['ai_bins'].astype(str)
     
-    ## Use train_test_split to create two chunk groups
-
     # Making sure that there is more than one chunk in each combined_target group,
     # in order to run train_test_split.
     special_chunks = grouped.groupby('combined_target').filter(lambda x: len(x) == 1).index.tolist()
