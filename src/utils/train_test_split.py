@@ -8,11 +8,11 @@ from sklearn.model_selection import train_test_split
 def train_test_split_chunks(df):
     """
     Function to split the DataFrame into train and validation sets
-    based on 'TA_F' mean temperature and 'ai' aridity per 'sitename'.
+    based on 'TA_F_MDS' mean temperature and 'ai' aridity per 'sitename'.
     20% of data is used for validation.
 
     Parameters:
-    - df (pd.DataFrame): DataFrame containing flux variables used for training and 'TA_F', 'classid', and 'sitename' columns
+    - df (pd.DataFrame): DataFrame containing flux variables used for training and 'TA_F_MDS' and 'sitename' columns
 
     Returns:
     - df_train (pd.DataFrame): DataFrame with the train data
@@ -23,14 +23,14 @@ def train_test_split_chunks(df):
     test_size = 0.2
 
     # Group by 'chunk_id' and calculate mean temperature
-    grouped = df.groupby('chunk_id').agg({'TA_F': 'mean', 'classid': 'first', 'ai': 'first'})
+    grouped = df.groupby('chunk_id').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
 
     # Discretize numerical columns into bins
-    grouped['TA_F_bins'] = pd.cut(grouped['TA_F'], bins=2, labels=False)
+    grouped['TA_F_MDS_bins'] = pd.cut(grouped['TA_F_MDS'], bins=2, labels=False)
     grouped['ai_bins'] = pd.cut(grouped['ai'], bins=2, labels=False)
 
     # Combine discretized columns into a single categorical column for stratification
-    grouped['combined_target'] = grouped['TA_F_bins'].astype(str) + '_' + grouped['ai_bins'].astype(str)
+    grouped['combined_target'] = grouped['TA_F_MDS_bins'].astype(str) + '_' + grouped['ai_bins'].astype(str)
     
     ## Use train_test_split to create two chunk groups
 

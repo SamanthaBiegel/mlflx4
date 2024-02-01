@@ -35,7 +35,7 @@ class gpp_dataset_cat(Dataset):
                               dtype = torch.float32)
         
         # Define mask for imputed values
-        self.mask = x['not_imputed'].values
+        self.mask = ~x['imputed'].values
 
         # Define vector of sites corresponding to the rows in x
         # to be used for indexing
@@ -117,7 +117,7 @@ class gpp_dataset(Dataset):
                               dtype = torch.float32)
         
         # Define mask for imputed values
-        self.mask = x['not_imputed'].values
+        self.mask = ~x['imputed'].values
         self.chunks = x["chunk_id"].unique()
 
         # For each chunk, store the corresponding rows in x
@@ -182,7 +182,7 @@ class gpp_dataset_test(Dataset):
                               dtype = torch.float32)
         
         # Define mask for imputed values
-        self.mask = x['not_imputed'].values
+        self.mask = ~x['imputed'].values
 
         # Define vector of sites corresponding to the rows in x
         # to be used for indexing

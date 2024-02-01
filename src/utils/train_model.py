@@ -5,7 +5,6 @@ import numpy as np
 
 # Import functions
 from data.dataloader import *
-from data.chunk_data import chunk_data
 from utils.train_test_loops import *
 from utils.train_test_split import train_test_split_chunks
 from torch.utils.data import DataLoader
@@ -30,7 +29,6 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     - train_mean (array): Mean values used for normalizing the training data, to be reused in model testing.
     - train_std (array): Standard deviation values used for normalizing the training data, to be reused in model testing.
     """
-    data = chunk_data(data)
     data = data.dropna(subset=["chunk_id"])
 
     # Separate train-val split
@@ -44,13 +42,9 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     train_ds = gpp_dataset(data_train, train_mean, train_std)
     val_ds = gpp_dataset(data_val, train_mean, train_std)
 
-    # Run data loader with batch_size = 1
-    # Due to different time series lengths per site,
-    # we cannot load several sites per batch
     train_dl = DataLoader(train_ds, batch_size = 4, shuffle = True)
     val_dl = DataLoader(val_ds, batch_size = 4, shuffle = True)
 
-    
     # Start recording loss (MSE) after each epoch, initialise at Inf
     best_loss = np.Inf
 

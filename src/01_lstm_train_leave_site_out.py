@@ -58,12 +58,11 @@ sites = data.index.unique()
 
 # Get data dimensions to match LSTM model dimensions
 # Exclude aridity index from the training features, as it is site metadata
-INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
+INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
 
 if args.conditional:
     # Embed categorical variables into dummy variables, if conditioning on vegetation class and land use
     data_cat = pd.get_dummies(data[['classid', "igbp_land_use"]])
-    data = data.drop(columns = ['classid', "igbp_land_use"])
 
     # Get categorial data dimensions for RNN model
     CONDITIONAL_FEATURES = data_cat.shape[1]

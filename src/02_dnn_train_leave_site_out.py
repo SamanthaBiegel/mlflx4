@@ -2,7 +2,6 @@
 
 # Custom modules and functions
 from models.dnn_model import Model
-from data.preprocess import compute_center
 from data.dataloader import gpp_dataset
 from utils.utils import set_seed
 from utils.train_test_loops import train_loop, test_loop
@@ -50,7 +49,7 @@ data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
 sites = data.index.unique()
 
 # Get data dimensions to match LSTM model dimensions
-INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
+INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
 
 # Initialise data.frame to store GPP predictions, from the trained LSTM model
 y_pred_sites = {}
