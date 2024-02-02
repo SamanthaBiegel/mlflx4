@@ -160,6 +160,16 @@ for s in sites:
 # to be used as a mask in the model testing
 data.loc[:, 'imputed'] = df.loc[:, 'GPP_NT_VUT_REF'].isna()
 
+# Fill in missing wind speed or VPD with mean values
+for site in data[data["WS_F"].isna()].index.unique():
+    data.loc[data.index == site, 'WS_F'] = data.loc[data.index == site, 'WS_F'].mean()
+for site in data[data["VPD_F_MDS"].isna()].index.unique():
+    data.loc[data.index == site, 'VPD_F_MDS'] = data.loc[data.index == site, 'VPD_F_MDS'].mean()
+
+# Remove sites with missing FPAR
+data = data[data.index != 'US-BZS']
+data = data[data.index != 'US-ORv']
+
 data = chunk_data(data)
 
 # Filter data to remove sites with less than 5 years of data
