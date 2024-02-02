@@ -2,7 +2,7 @@
 
 # Custom modules and functions
 from models.lstm_model import Model, ModelCond
-from data.dataloader import gpp_dataset, gpp_dataset_test, gpp_dataset_cat
+from data.dataloader import gpp_dataset, gpp_dataset_cat
 from utils.utils import set_seed
 from utils.train_test_loops import *
 from utils.train_model import *
@@ -140,7 +140,7 @@ for s in sites:
     if args.conditional:
         test_ds = gpp_dataset_cat(data_test, data_cat_test, train_mean, train_std)
     else:
-        test_ds = gpp_dataset_test(data_test, train_mean, train_std)
+        test_ds = gpp_dataset(data_test, train_mean, train_std, test = True)
     
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,

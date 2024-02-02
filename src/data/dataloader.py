@@ -90,7 +90,7 @@ def compute_center(x):
 
 
 class gpp_dataset(Dataset):
-    def __init__(self, x, train_mean, train_std):
+    def __init__(self, x, train_mean, train_std, test=False):
         """
         A PyTorch Dataset for GPP prediction, without categorical features.
 
@@ -99,10 +99,11 @@ class gpp_dataset(Dataset):
             train_mean (float): Mean value of training data for centering features.
             train_std (float): Standard deviation of training data for scaling features.
         """
+        self.test = test
         
         # Select numeric variables only, without GPP
         x_num = x.select_dtypes(include = ['int', 'float'])
-        x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai', "chunk_id"])
+        x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai',"chunk_id"])
 
         # Center data, according to training data center
         x_centered = (x_num - train_mean)/train_std
@@ -117,83 +118,35 @@ class gpp_dataset(Dataset):
                               dtype = torch.float32)
         
         # Define mask for imputed values
-        self.mask = ~x['imputed'].values
-        self.chunks = x["chunk_id"].unique()
+        self.mask = torch.tensor(~x['imputed'].values, dtype = torch.bool)
 
-        # For each chunk, store the corresponding rows in x
-        self.chunk_to_row = {}
-        for chunk in self.chunks:
-            self.chunk_to_row[chunk] = list(x["chunk_id"] == chunk)
+        if not self.test:
+            self.chunks = x["chunk_id"].unique()
 
-        # Define length of dataset
-        self.len = len(x["chunk_id"].unique())      # number of chunks
+            # For each chunk, store the corresponding rows in x
+            chunk_to_row = {}
+            for chunk in self.chunks:
+                chunk_to_row[chunk] = list(x["chunk_id"] == chunk)
 
-    def __getitem__(self, idx):
-        """
-        Get the covariates and target variable for a specific site.
+            # Reshape x, y and mask to index by chunk
+            x_final = torch.zeros((len(self.chunks), 5*365, x_centered.shape[1]))
+            y_final = torch.zeros((len(self.chunks), 5*365))
+            mask_final = torch.zeros((len(self.chunks), 5*365))
+            for i, chunk in enumerate(self.chunks):
+                x_final[i,:,:] = self.x[chunk_to_row[chunk],:]
+                y_final[i,:] = self.y[chunk_to_row[chunk]]
+                mask_final[i,:] = self.mask[chunk_to_row[chunk]]
 
-        Args:
-            idx (int): Index of the site.
+            self.x = x_final
+            self.y = y_final
+            self.mask = mask_final.bool()
 
-        Returns:
-            Tuple of numerical covariates and target variable for the specified site.
-            A vector with the mask for imputed values is also returned.
-        """
-        chunks_idx = self.chunks[idx]
-        rows = self.chunk_to_row[chunks_idx]
-        return self.x[rows], self.y[rows], self.mask[rows]
-
-    def __len__(self):
-        """
-        Get the total number of samples (i.e. sites) in the dataset.
-
-        Returns:
-            int: The number of samples in the dataset, that is, the number of sites.
-        """
-
-        return self.len
-    
-
-class gpp_dataset_test(Dataset):
-    def __init__(self, x, train_mean, train_std):
-        """
-        A PyTorch Dataset for GPP prediction, without categorical features.
-
-        Args:
-            x (DataFrame): Input data containing numerical features and target variable.
-            train_mean (float): Mean value of training data for centering features.
-            train_std (float): Standard deviation of training data for scaling features.
-        """
-        
-        # Select numeric variables only, without GPP
-        x_num = x.select_dtypes(include = ['int', 'float'])
-        x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai'])
-
-        # Center data, according to training data center
-        x_centered = (x_num - train_mean)/train_std
-
-        # Create tensor for the covariates
-        # The pandas DataFrame must be converted to a numpy array
-        self.x = torch.tensor(x_centered.values,
-                              dtype = torch.float32)
-        
-        # Define target        
-        self.y = torch.tensor(x['GPP_NT_VUT_REF'].values,
-                              dtype = torch.float32)
-        
-        # Define mask for imputed values
-        self.mask = ~x['imputed'].values
-
-        # Define vector of sites corresponding to the rows in x
-        # to be used for indexing
-        self.sitename = x.index
-
-        # Define list of unique sites
-        self.sites = x.index.unique()
-
-        # Define length of dataset
-        # self.len = x.shape[0]         # number of rows
-        self.len = len(self.sites)      # number of sites
+            # Define length of dataset
+            self.len = len(x["chunk_id"].unique())      # number of chunks
+        else:
+            self.sitename = x.index
+            self.sites = x.index.unique()
+            self.len = len(self.sites)
 
     def __getitem__(self, idx):
         """
@@ -206,10 +159,12 @@ class gpp_dataset_test(Dataset):
             Tuple of numerical covariates and target variable for the specified site.
             A vector with the mask for imputed values is also returned.
         """
-        
-        # Select rows corresponding to site idx
-        rows = [s == self.sites[idx] for s in self.sitename]
-        return self.x[rows], self.y[rows], self.mask[rows]
+        if not self.test:
+            return self.x[idx,:,:], self.y[idx,:], self.mask[idx,:]
+        else:
+            rows = [s == self.sites[idx] for s in self.sitename]
+            return self.x[rows], self.y[rows], self.mask[rows]
+
   
     def __len__(self):
         """
@@ -220,4 +175,3 @@ class gpp_dataset_test(Dataset):
         """
 
         return self.len
-

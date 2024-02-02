@@ -183,3 +183,5 @@ models/runs/
 events.out.tfevents.*
 
 df_imputed.csv
+
+*.ipynb

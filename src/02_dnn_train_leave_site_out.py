@@ -102,7 +102,7 @@ for s in sites:
     ## Model evaluation
 
     # Format pytorch dataset for the data loader
-    test_ds = gpp_dataset(data_test, train_mean, train_std)
+    test_ds = gpp_dataset(data_test, train_mean, train_std, test = True)
 
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,
