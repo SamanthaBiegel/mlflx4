@@ -4,8 +4,8 @@
 # Import dependencies
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import r2_score
-from tqdm import tqdm
+from sklearn.metrics import r2_score, mean_absolute_error
+import numpy as np
 
 def train_loop(dataloader, model, optimizer, DEVICE):
 
@@ -46,10 +46,8 @@ def train_loop(dataloader, model, optimizer, DEVICE):
         train_r2 += r2_score(y_true = y.detach().cpu().numpy().flatten(),      # format tensor to np.array
                              y_pred = y_pred.detach().cpu().numpy().flatten())
 
-    # Set model to evaluation mode (deactivate droptou, etc)
+    # Set model to evaluation mode (deactivate dropout, etc)
     model.eval()
-
-    print(f"Train loss: {train_loss/n_batches:.4f} | Train R2: {train_r2/n_batches:.4f}")
 
     # Return computed training loss
     return train_loss/n_batches, train_r2/n_batches
@@ -110,6 +108,8 @@ def test_loop(dataloader, model, DEVICE):
     # Initiate testing losses, to aggregate over sites (if there are more than one)
     test_loss = 0.0
     test_r2 = 0.0
+    test_mae = 0.0
+
     # Initiate counter for number of sites used to average the R2 score
     n_sites = 0
 
@@ -139,15 +139,18 @@ def test_loop(dataloader, model, DEVICE):
             # Get mask as a Boolean list, from the torch tensor given by the data loader
             # mask = mask.numpy()[0]
 
+            y_true = y.detach().cpu().numpy()[mask.squeeze()].flatten()
+            y_pred = y_pred[mask.squeeze()].flatten()
+
             # Compute R2 on non-imputed testing data
-            test_r2 += r2_score(y_true = y.detach().cpu().numpy()[mask.squeeze()].flatten(),
-                               y_pred = y_pred[mask.squeeze()].flatten())
+            test_r2 += r2_score(y_true = y_true, y_pred = y_pred)
+            test_mae += mean_absolute_error(y_true = y_true, y_pred = y_pred)
             
             n_sites += 1  # Increase counter
             
 
     # Return computed testing loss
-    return test_loss, test_r2/n_sites, y_pred
+    return test_loss/n_sites, test_r2/n_sites, test_mae/n_sites, y_pred
 
 
 def test_loop_cat(dataloader, model, DEVICE):

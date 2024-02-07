@@ -9,8 +9,7 @@ from utils.train_test_loops import *
 from utils.train_test_split import train_test_split_chunks
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
-def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
+def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, patience):
     """
     Trains a PyTorch model, using a train-validation split, with training on all training sites per epoch
     and early stopping based on the mean squared error (MSE) for validation sites.
@@ -29,21 +28,6 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     - train_mean (array): Mean values used for normalizing the training data, to be reused in model testing.
     - train_std (array): Standard deviation values used for normalizing the training data, to be reused in model testing.
     """
-    data = data.dropna(subset=["chunk_id"])
-
-    # Separate train-val split
-    data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data)
-
-    # Calculate mean and standard deviation to normalize the data
-    train_mean, train_std = compute_center(data_train)
-
-    # Format pytorch dataset for the data loader
-    # Normalize training and validation data according to the training center
-    train_ds = gpp_dataset(data_train, train_mean, train_std)
-    val_ds = gpp_dataset(data_val, train_mean, train_std)
-
-    train_dl = DataLoader(train_ds, batch_size = 4, shuffle = True)
-    val_dl = DataLoader(val_ds, batch_size = 4, shuffle = True)
 
     # Start recording loss (MSE) after each epoch, initialise at Inf
     best_loss = np.Inf
@@ -63,7 +47,7 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
         writer.add_scalar("r2_mean/train", train_r2, epoch)         # summed R2, will not be in [0,1] 
 
         # Evaluate model on test set, removing imputed GPP values
-        val_loss, val_r2, y_pred = test_loop(val_dl, model, DEVICE)
+        val_loss, val_r2, val_mae, y_pred = test_loop(val_dl, model, DEVICE)
         
         # Log tensorboard testing values
         writer.add_scalar("mse_loss/validation", val_loss, epoch)
@@ -77,6 +61,7 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
             best_model = model.state_dict()
             # Save the best model's R2 score
             best_r2 = val_r2
+            best_mae = val_mae
 
             patience_counter = 0  # Reset patience counter
         else:
@@ -91,7 +76,7 @@ def train_model(data, model, optimizer, writer, n_epochs, DEVICE, patience):
     if best_model:
         model.load_state_dict(best_model)
 
-    return best_r2, train_mean, train_std
+    return best_r2, best_mae, model
 
 
 

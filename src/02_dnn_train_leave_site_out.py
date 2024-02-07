@@ -2,10 +2,11 @@
 
 # Custom modules and functions
 from models.dnn_model import Model
-from data.dataloader import gpp_dataset
+from data.dataloader import gpp_dataset, compute_center
 from utils.utils import set_seed
 from utils.train_test_loops import train_loop, test_loop
 from utils.train_model import train_model
+from utils.train_test_split import train_test_split_chunks
 
 # Load necessary dependencies
 import argparse
@@ -31,6 +32,15 @@ parser.add_argument('-o', '--output_file', default='', type=str,
 parser.add_argument('-p', '--patience', default=10, type=int,
                     help='Number of iterations (patience threshold) used for early stopping')
 
+parser.add_argument('-b', '--batch_size', default=16, type=int,
+                    help='Batch size for training the model')
+
+parser.add_argument('-d', '--hidden_dim', default=128, type=int,
+                    help='Hidden dimension of the DNN model')
+
+parser.add_argument('-l', '--learning_rate', default=0.0005, type=float,
+                    help='Learning rate for the optimizer')
+
 args = parser.parse_args()
 
 
@@ -42,7 +52,7 @@ print(f"> Device: {args.device}")
 print(f"> Epochs: {args.n_epochs}")
 print(f"> Early stopping after {args.patience} epochs without improvement")
 
-# Read imputed and raw data# Read imputed data, including variables for stratified train-test split and imputation flag
+# Read imputed data, including variables for stratified train-test split and imputation flag
 data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
 
 # Create list of sites for leave-site-out cross validation
@@ -61,16 +71,31 @@ for s in sites:
 
     # Split data (numerical time series) for leave-site-out cross validation
     # A single site is kept for testing and all others are used for training
-    data_train = data.loc[ data.index != s ]
+    data_train_val = data.loc[ data.index != s ]
     data_test = data.loc[ data.index == s]
 
-    ## Define the model to be trained
+    data_train_val = data_train_val.dropna(subset=["chunk_id"])
 
+    # Separate train-val split
+    data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data_train_val)
+
+    # Calculate mean and standard deviation to normalize the data
+    train_mean, train_std = compute_center(data_train)
+
+    # Format pytorch dataset for the data loader
+    # Normalize training and validation data according to the training center
+    train_ds = gpp_dataset(data_train, train_mean, train_std)
+    val_ds = gpp_dataset(data_val, train_mean, train_std)
+
+    train_dl = DataLoader(train_ds, batch_size = args.batch_size, shuffle = True)
+    val_dl = DataLoader(val_ds, batch_size = args.batch_size, shuffle = True)
+
+    ## Define the model to be trained
     # Initialise the DNN model, set layer dimensions to match data
-    model = Model(input_dim = INPUT_FEATURES).to(device = args.device)
+    model = Model(input_dim = INPUT_FEATURES, hidden_dim=args.hidden_dim).to(device = args.device)
 
     # Initialise the optimiser
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     # Initiate tensorboard logging instance for this site
     if len(args.output_file) == 0:
@@ -78,15 +103,14 @@ for s in sites:
     else:
         writer = SummaryWriter(log_dir = f"../models/runs/{args.output_file}/{s}")
 
-
     ## Train the model
 
     # Return best validation R2 score and the center used to normalize training data (repurposed for testing on leaf-out site)
-    best_r2, train_mean, train_std = train_model(data_train,
+    best_r2, best_mae, model = train_model(train_dl, val_dl,
                                                  model, optimizer, writer,
                                                  args.n_epochs, args.device, args.patience)
     
-    print(f"Validation R2 score for site {s}:  {best_r2}")
+    print(f"Validation scores for site {s}: R2 = {best_r2:.4f} | MAE = {best_mae:.4f}")
 
     # Save model weights from best epoch
     if len(args.output_file)==0:
@@ -110,12 +134,12 @@ for s in sites:
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = True)
 
     # Evaluate model on test set, removing imputed GPP values
-    test_loss, test_r2, y_pred = test_loop(test_dl, model, args.device)
+    test_loss, test_r2, test_mae, y_pred = test_loop(test_dl, model, args.device)
 
     # Save prediction for the left-out site
     y_pred_sites[s] = y_pred
 
-    print(f"R2 score for site {s}: {test_r2}")
+    print(f"Test scores for site {s}: R2 = {test_r2:.4f} | MAE = {test_mae:.4f}")
     print("")
 
     
