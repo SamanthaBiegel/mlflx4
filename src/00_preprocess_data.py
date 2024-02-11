@@ -125,8 +125,6 @@ merged_df['PET'] = (0.408 * merged_df['Delta'] * (merged_df['NETRAD']*86400*1e-6
 site_totals = merged_df.dropna(subset=["PET"]).groupby('sitename').agg({'PET': 'sum', 'P_F': 'sum'})
 site_totals['ai'] = site_totals['P_F'] / site_totals['PET']
 
-print("Merging aridity index from FLUXNET metadata")
-
 # Merge the data with the metadata based on their indices
 # The aridity index will be used for the stratified train-test splits, not for modelling
 # data = pd.merge(data, df_meta[['ai']], left_on='sitename', right_index=True, how='left')

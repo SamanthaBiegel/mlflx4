@@ -44,7 +44,7 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
 
         # Log tensorboard training values
         writer.add_scalar("mse_loss/train", train_loss, epoch)
-        writer.add_scalar("r2_mean/train", train_r2, epoch)         # summed R2, will not be in [0,1] 
+        writer.add_scalar("r2_mean/train", train_r2, epoch)
 
         # Evaluate model on test set, removing imputed GPP values
         val_loss, val_r2, val_mae, y_pred = test_loop(val_dl, model, DEVICE)

@@ -22,8 +22,8 @@ def train_test_split_chunks(df):
     # Set test-split size (0-1)
     test_size = 0.2
 
-    # Group by 'chunk_id' and calculate mean temperature
-    grouped = df.groupby('chunk_id').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
+    # Group by site and calculate mean temperature
+    grouped = df.groupby('sitename').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
 
     # Discretize numerical columns into bins
     grouped['TA_F_MDS_bins'] = pd.qcut(grouped['TA_F_MDS'], 2, labels=False)
@@ -64,7 +64,7 @@ def train_test_split_chunks(df):
         chunks_val = val_df.index
 
     # Separate the time series data (including the imputed values mask in the last column)
-    df_train = df.loc[[any(site == s for s in chunks_train) for site in df["chunk_id"]]]
-    df_val = df.loc[[any(site == s for s in chunks_val) for site in df["chunk_id"]]]
+    df_train = df.loc[[any(site == s for s in chunks_train) for site in df.index]]
+    df_val = df.loc[[any(site == s for s in chunks_val) for site in df.index]]
 
     return df_train, df_val, chunks_train, chunks_val

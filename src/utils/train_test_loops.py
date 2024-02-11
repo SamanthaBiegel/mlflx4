@@ -7,6 +7,12 @@ import torch.nn.functional as F
 from sklearn.metrics import r2_score, mean_absolute_error
 import numpy as np
 
+def custom_loss(outputs, targets, masks):
+    # Use the mask to zero out contributions from padded values
+    loss = (outputs - targets) ** 2  # MSE loss
+    masked_loss = loss * masks  # Apply the mask
+    return masked_loss.sum() / masks.sum()  # Normalize by the number of non-padded values
+
 def train_loop(dataloader, model, optimizer, DEVICE):
 
     # Initiate training losses, to aggregate over sites
@@ -19,10 +25,11 @@ def train_loop(dataloader, model, optimizer, DEVICE):
     n_batches = len(dataloader)
 
     # Loop over all training sites
-    for x, y, mask in dataloader:
+    for x, y, mask, padding_mask in dataloader:
         # Send tensors to the correct device
         x = x.to(DEVICE)
         y = y.to(DEVICE)
+        padding_mask = padding_mask.to(DEVICE)
         
         # Perform forward pass for predictions
         y_pred = model(x)
@@ -30,8 +37,8 @@ def train_loop(dataloader, model, optimizer, DEVICE):
         # Reset gradient to zero, rather than aggregating gradient over sites
         optimizer.zero_grad()
 
-        # Compute MSE losss between GPP and predicted GPP
-        loss = F.mse_loss(y_pred.flatten(), y.flatten())
+        # Compute MSE loss between GPP and predicted GPP
+        loss = custom_loss(y_pred.flatten(), y.flatten(), padding_mask.flatten())
 
         # Backpropagate the gradients through the model
         loss.backward()
@@ -43,7 +50,7 @@ def train_loop(dataloader, model, optimizer, DEVICE):
         train_loss += loss.item()
 
         # Compute coefficient of determination on training data
-        train_r2 += r2_score(y_true = y.detach().cpu().numpy().flatten(),      # format tensor to np.array
+        train_r2 += r2_score(y_true = y.detach().cpu().numpy().flatten(),
                              y_pred = y_pred.detach().cpu().numpy().flatten())
 
     # Set model to evaluation mode (deactivate dropout, etc)
@@ -113,15 +120,16 @@ def test_loop(dataloader, model, DEVICE):
     # Initiate counter for number of sites used to average the R2 score
     n_sites = 0
 
-    # Stop computing gradients during the following code chunk:d
+    # Stop computing gradients during the following code chunk
     with torch.no_grad():
 
         # Get testing data from dataloader
-        for x, y, mask in dataloader:
+        for x, y, mask, padding_mask in dataloader:
 
             # Send tensors to the correct device
             x = x.to(DEVICE)
             y = y.to(DEVICE)
+            padding_mask = padding_mask.to(DEVICE)
 
             # Perform forward pass for predictions
             y_pred = model(x)
@@ -131,7 +139,7 @@ def test_loop(dataloader, model, DEVICE):
             y_pred = y_pred.squeeze()
 
             # Compute test MSE on testing data (including imputed values)
-            test_loss += F.mse_loss(y_pred, y)
+            test_loss += custom_loss(y_pred, y, padding_mask)
 
             # Transform prediction tensor into numpy array
             y_pred = y_pred.detach().cpu().numpy()

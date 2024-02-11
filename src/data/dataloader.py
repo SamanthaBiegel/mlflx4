@@ -120,33 +120,43 @@ class gpp_dataset(Dataset):
         # Define mask for imputed values
         self.mask = torch.tensor(~x['imputed'].values, dtype = torch.bool)
 
+        # get max number of samples in one site
+        self.max_samples = x.index.value_counts().max()
+        
         if not self.test:
-            self.chunks = x["chunk_id"].unique()
+            self.sites = x.index.unique()
+            self.sitename = x.index
 
-            # For each chunk, store the corresponding rows in x
-            chunk_to_row = {}
-            for chunk in self.chunks:
-                chunk_to_row[chunk] = list(x["chunk_id"] == chunk)
+            # Reshape x, y and mask to index by site
+            x_final = torch.zeros((len(self.sites), self.max_samples, x_centered.shape[1]))
+            y_final = torch.zeros((len(self.sites), self.max_samples))
+            mask_final = torch.zeros((len(self.sites), self.max_samples))
+            mask_padding = torch.zeros((len(self.sites), self.max_samples))
 
-            # Reshape x, y and mask to index by chunk
-            x_final = torch.zeros((len(self.chunks), 5*365, x_centered.shape[1]))
-            y_final = torch.zeros((len(self.chunks), 5*365))
-            mask_final = torch.zeros((len(self.chunks), 5*365))
-            for i, chunk in enumerate(self.chunks):
-                x_final[i,:,:] = self.x[chunk_to_row[chunk],:]
-                y_final[i,:] = self.y[chunk_to_row[chunk]]
-                mask_final[i,:] = self.mask[chunk_to_row[chunk]]
+            for i, site in enumerate(self.sites):
+                site_mask = self.sitename == site
+                
+                x_site = self.x[site_mask]
+                y_site = self.y[site_mask]
+                mask_site = self.mask[site_mask]
+
+                num_rows = x_site.shape[0]
+
+                x_final[i, :num_rows, :] = x_site
+                y_final[i, :num_rows] = y_site
+                mask_final[i, :num_rows] = mask_site
+                mask_padding[i, :num_rows] = torch.ones(num_rows)
 
             self.x = x_final
             self.y = y_final
             self.mask = mask_final.bool()
-
-            # Define length of dataset
-            self.len = len(x["chunk_id"].unique())      # number of chunks
+            self.mask_padding = mask_padding.bool()
+            self.len = len(self.sites)
         else:
             self.sitename = x.index
             self.sites = x.index.unique()
             self.len = len(self.sites)
+            self.mask_padding = torch.ones((self.max_samples))
 
     def __getitem__(self, idx):
         """
@@ -160,11 +170,10 @@ class gpp_dataset(Dataset):
             A vector with the mask for imputed values is also returned.
         """
         if not self.test:
-            return self.x[idx,:,:], self.y[idx,:], self.mask[idx,:]
+            return self.x[idx,:,:], self.y[idx,:], self.mask[idx,:], self.mask_padding[idx,:]
         else:
             rows = [s == self.sites[idx] for s in self.sitename]
-            return self.x[rows], self.y[rows], self.mask[rows]
-
+            return self.x[rows], self.y[rows], self.mask[rows], self.mask_padding[rows]
   
     def __len__(self):
         """
