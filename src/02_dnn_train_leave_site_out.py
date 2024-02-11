@@ -32,17 +32,16 @@ parser.add_argument('-o', '--output_file', default='', type=str,
 parser.add_argument('-p', '--patience', default=10, type=int,
                     help='Number of iterations (patience threshold) used for early stopping')
 
-parser.add_argument('-b', '--batch_size', default=16, type=int,
+parser.add_argument('-b', '--batch_size', default=32, type=int,
                     help='Batch size for training the model')
 
-parser.add_argument('-d', '--hidden_dim', default=128, type=int,
+parser.add_argument('-d', '--hidden_dim', default=512, type=int,
                     help='Hidden dimension of the DNN model')
 
-parser.add_argument('-l', '--learning_rate', default=0.0005, type=float,
+parser.add_argument('-l', '--learning_rate', default=0.005, type=float,
                     help='Learning rate for the optimizer')
 
 args = parser.parse_args()
-
 
 # Set random seeds for reproducibility
 set_seed(40)
@@ -126,7 +125,7 @@ for s in sites:
     ## Model evaluation
 
     # Format pytorch dataset for the data loader
-    test_ds = gpp_dataset(data_test, train_mean, train_std, test = True)
+    test_ds = gpp_dataset(data_test, train_mean, train_std, test = False)
 
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,
