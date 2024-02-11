@@ -33,8 +33,8 @@ set_seed(40)
 data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0, parse_dates=['TIMESTAMP'])
 
 # Hyperparameter tuning setup
-batch_sizes_list = [16, 32, 64, 128, 256, 512, 1024]
-hidden_dim_list = [32, 64, 128, 256, 512, 1024]
+batch_sizes_list = [16, 32, 64, 128, 256]
+hidden_dim_list = [32, 64, 128, 256, 512]
 learning_rates_list = [1e-1, 5e-2, 1e-2, 1e-3, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
 
 best_model = None
@@ -45,8 +45,6 @@ best_validation_score = np.inf
 writer = SummaryWriter(log_dir=f"../models/runs/hyperparameter_tuning")
 
 INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
-
-data = data.dropna(subset=["chunk_id"])
 
 # Separate train-val split
 data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data)
@@ -74,6 +72,8 @@ for i in tqdm(range(args.num_trials)):
 
     train_dl = DataLoader(train_ds, batch_size = batch_size, shuffle = True)
     val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = True)
+
+
 
     # Call the train_model function with the current set of hyperparameters
     val_r2, val_mae, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
