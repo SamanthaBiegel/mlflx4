@@ -50,37 +50,41 @@ class ModelCond(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, input_dim, hidden_dim,  num_layers=2):
+    def __init__(self, input_dim, hidden_dim, num_layers=2, dropout=0.3):
         super().__init__()
 
         # LSTM layer for sequence processing
-        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=2, dropout=0.3, batch_first=True)
+        self.lstm = nn.LSTM(input_size=input_dim, hidden_size=hidden_dim, num_layers=num_layers, dropout=dropout, batch_first=True)
 
-        # Fully connected layers for feature processing
-        self.fc1 = nn.Sequential(
-        nn.Linear(in_features=hidden_dim, out_features=64),
-        nn.ReLU()
-        )
-        self.fc2 = nn.Sequential(
-            nn.Linear(in_features=64, out_features=32),
-            nn.ReLU()
-        )
-        self.fc3= nn.Sequential(
-            nn.Linear(in_features=32, out_features=16),
-            nn.ReLU()
-        )
+        current_dim = hidden_dim
+
+        layers = []
         
-        # Final linear layer for regression output
-        self.fc4 = nn.Linear(16, 1)
+        # Create additional layers that half the dimension each time until it reaches 16
+        while current_dim > 16:
+            next_dim = max(current_dim // 2, 16)
+            layer = nn.Sequential(
+                nn.Linear(current_dim, next_dim),
+                nn.ReLU()
+            )
+            layers.append(layer)
+            current_dim = next_dim
+        
+        # Save all layers in an nn.ModuleList
+        self.layers = nn.ModuleList(layers)
+        
+        # Final linear layer for regression output to 1
+        self.final_layer = nn.Linear(current_dim, 1)
         
     def forward(self, x):
-        # Forward pass through the LSTM layer
-        out, (h,d) = self.lstm(x)
-        
-        # Pass the concatenated output through fully connected layers
-        y = self.fc1(out)
-        y = self.fc2(y)
-        y = self.fc3(y)
-        y = self.fc4(y)
 
-        return y
+        # Forward pass through the LSTM layer
+        x, (h,d) = self.lstm(x)
+
+        # Pass the output through the rest of the layers
+        for layer in self.layers:
+            x = layer(x)
+
+        x = self.final_layer(x)
+
+        return x
