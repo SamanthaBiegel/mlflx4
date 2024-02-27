@@ -8,9 +8,11 @@ from utils.train_test_loops import train_loop, test_loop
 from utils.train_model import train_model
 from utils.train_test_split import train_test_split_chunks
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import r2_score, root_mean_squared_error
 
 # Load necessary dependencies
 import argparse
+import datetime
 import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader
@@ -33,13 +35,13 @@ parser.add_argument('-o', '--output_file', default='', type=str,
 parser.add_argument('-p', '--patience', default=10, type=int,
                     help='Number of iterations (patience threshold) used for early stopping')
 
-parser.add_argument('-b', '--batch_size', default=32, type=int,
+parser.add_argument('-b', '--batch_size', default=16, type=int,
                     help='Batch size for training the model')
 
-parser.add_argument('-d', '--hidden_dim', default=512, type=int,
+parser.add_argument('-d', '--hidden_dim', default=128, type=int,
                     help='Hidden dimension of the DNN model')
 
-parser.add_argument('-l', '--learning_rate', default=0.005, type=float,
+parser.add_argument('-l', '--learning_rate', default=0.001, type=float,
                     help='Learning rate for the optimizer')
 
 args = parser.parse_args()
@@ -58,10 +60,10 @@ data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
 # Create list of sites for leave-site-out cross validation
 sites = data.index.unique()
 
-# Get data dimensions to match LSTM model dimensions
+# Get data dimensions to match DNN model dimensions
 INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
 
-# Initialise data.frame to store GPP predictions, from the trained LSTM model
+# Initialise data.frame to store GPP predictions, from the trained DNN model
 y_pred_sites = {}
 
 # Group by 'sitename' and calculate mean temperature and aridity
@@ -76,11 +78,10 @@ grouped['ai_bins'] = pd.qcut(grouped['ai'], 2, labels=False).astype(str)
 # Combine discretized columns into a single categorical column for stratification
 grouped['combined_target'] = grouped['TA_F_MDS_bins'] + '_' + grouped['ai_bins']
 
-kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+kf = StratifiedKFold(n_splits=5, shuffle=True)
 for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['combined_target'])):
     train_sites = grouped.index.unique()[train_index]
     test_sites = grouped.index.unique()[test_index]
-    print(f"Fold {i+1}: Test sites: {test_sites}")
     
     data_train_val = data[data.index.isin(train_sites)]
     data_test = data[data.index.isin(test_sites)]
@@ -115,11 +116,11 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     ## Train the model
 
     # Return best validation R2 score and the center used to normalize training data (repurposed for testing on leaf-out site)
-    best_r2, best_mae, model = train_model(train_dl, val_dl,
+    best_r2, best_rmse, model = train_model(train_dl, val_dl,
                                                  model, optimizer, writer,
                                                  args.n_epochs, args.device, args.patience)
     
-    print(f"Validation scores for fold {i+1}: R2 = {best_r2:.4f} | MAE = {best_mae:.4f}")
+    print(f"Validation scores for fold {i+1}: R2 = {best_r2:.4f} | RMSE = {best_rmse:.4f}")
 
     # Save model weights from best epoch
     # if len(args.output_file)==0:
@@ -131,7 +132,6 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     # Stop logging, for this site
     writer.close()
 
-
     ## Model evaluation
 
     # Format pytorch dataset for the data loader
@@ -140,28 +140,53 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     # Run data loader with batch_size = 1
     # Due to different time series lengths per site,
     # we cannot load several sites per batch
-    test_dl = DataLoader(test_ds, batch_size = 1, shuffle = True)
+    test_dl = DataLoader(test_ds, batch_size = 1, shuffle = False)
 
     # Evaluate model on test set, removing imputed GPP values
-    test_loss, test_r2, test_mae, y_pred = test_loop(test_dl, model, args.device)
+    test_loss, test_r2, test_rmse, y_pred = test_loop(test_dl, model, args.device)
 
-    # Save prediction for the left-out site
-    # y_pred_sites[s] = y_pred
+    data_test_eval = data_test.copy()
+    data_test_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
 
-    print(f"Test scores for fold {i+1}: R2 = {test_r2:.4f} | MAE = {test_mae:.4f}")
+    # Filter inputs for nans
+    nan_y_true = data_test_eval["GPP_NT_VUT_REF"].isna()
+    nan_y_pred = data_test_eval["gpp_pred"].isna()
+    data_test_eval = data_test_eval[~(nan_y_true | nan_y_pred)]
+
+    r2_test = r2_score(y_true = data_test_eval["GPP_NT_VUT_REF"], y_pred = data_test_eval["gpp_pred"])
+    rmse_test = root_mean_squared_error(y_true = data_test_eval["GPP_NT_VUT_REF"], y_pred = data_test_eval["gpp_pred"])
+
+    for j, s in enumerate(data_test.index.unique()):
+        y_pred_sites[s] = y_pred[j]
+
+    print(f"Test scores for fold {i+1}: R2 = {r2_test:.4f} | RMSE = {rmse_test:.4f}")
     print("")
 
+def generate_filename(base_path, n_epochs, patience, batch_size, learning_rate, hidden_units):
+    # Format learning rate to avoid using '.' in file names
+    lr_formatted = f"{learning_rate:.0e}".replace('-', 'm').replace('.', 'p')
     
+    # Get current date and time
+    current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
+    
+    # Generate the filename
+    filename = (f"dnn_lso_alldata_epochs{n_epochs}_patience{patience}"
+                       f"_bs{batch_size}_lr{lr_formatted}_hu{hidden_units}"
+                       f"_{current_datetime}")
+    return f"{base_path}/{filename}"
 
-# Save predictions into a data.frame. aligning with raw data
-# df_out = pd.read_csv('../data/raw/df_20210510.csv', index_col=0)[['date', 'GPP_NT_VUT_REF']]
-# df_out = df_out[df_out.index != 'CN-Cng']
+# Constants
+base_path = "../models"
 
-# for s in df_out.index.unique():
-#     df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = np.asarray(y_pred_sites.get(s))
+# Generate filename
+filename = generate_filename(base_path, args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_dim)
 
-# # Save to a csv, to be processed in R
-# if len(args.output_file)==0:
-#     df_out.to_csv(f"../models/preds/dnn_lso_epochs_{args.n_epochs}_patience_{args.patience}.csv")   
-# else:
-#     df_out.to_csv("../models/preds/" + args.output_file)
+# Process and save predictions dataframe
+df_out = data.loc[:, ['TIMESTAMP','GPP_NT_VUT_REF']].copy()
+for s in y_pred_sites.keys():
+    df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = np.asarray(y_pred_sites.get(s))
+
+preds_filename = f"{filename}.csv".replace(base_path, f"{base_path}/preds")
+df_out.to_csv(preds_filename)
+
+print(f"Predictions saved to {preds_filename}")

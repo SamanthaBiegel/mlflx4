@@ -23,13 +23,13 @@ parser = argparse.ArgumentParser(description='CV DNN')
 parser.add_argument('-device', '--device', default='cuda:0' ,type=str,
                       help='Indices of GPU to enable')
 
-parser.add_argument('-e', '--n_epochs', default=150, type=int,
+parser.add_argument('-e', '--n_epochs', default=500, type=int,
                       help='Number of training epochs (per site, for the leave-site-out CV)')
 
 parser.add_argument('-o', '--output_file', default='', type=str,
                     help='File name to save output')
 
-parser.add_argument('-p', '--patience', default=10, type=int,
+parser.add_argument('-p', '--patience', default=50, type=int,
                     help='Number of iterations (patience threshold) used for early stopping')
 
 parser.add_argument('-b', '--batch_size', default=32, type=int,
@@ -144,14 +144,20 @@ for s in sites:
     
 
 # Save predictions into a data.frame. aligning with raw data
-df_out = pd.read_csv('../data/raw/df_20210510.csv', index_col=0)[['date', 'GPP_NT_VUT_REF']]
-df_out = df_out[df_out.index != 'CN-Cng']
+df_out = data[['TIMESTAMP', 'GPP_NT_VUT_REF']].copy()
 
 for s in df_out.index.unique():
-    df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = np.asarray(y_pred_sites.get(s))
+    y_pred = y_pred_sites.get(s)
+    if y_pred is None:
+        y_pred = np.nan  # np.nan is compatible with float32
+    else:
+        # Ensure the array is of dtype float32
+        y_pred = np.asarray(y_pred, dtype=np.float32)
+
+    df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = y_pred
 
 # Save to a csv, to be processed in R
 if len(args.output_file)==0:
-    df_out.to_csv(f"../models/preds/dnn_lso_epochs_{args.n_epochs}_patience_{args.patience}.csv")   
+    df_out.to_csv(f"../models/preds/dnn_lso_epochs_{args.n_epochs}_patience_{args.patience}_batch_{args.batch_size}_hidden_{args.hidden_dim}_lr_{args.learning_rate}.csv")  
 else:
     df_out.to_csv("../models/preds/" + args.output_file)

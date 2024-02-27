@@ -76,14 +76,14 @@ for i in tqdm(range(args.num_trials)):
 
 
     # Call the train_model function with the current set of hyperparameters
-    val_r2, val_mae, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
+    val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
     
-    print(f"R2 Score: {val_r2:.4f} | MAE: {val_mae:.4f}")
+    print(f"R2 Score: {val_r2:.4f} | RMSE: {val_rmse:.4f}")
 
     # Update best model if current model is better
-    if val_mae < best_validation_score:
-        best_validation_score = val_mae
-        best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'validation_mae': val_mae, 'validation_r2': val_r2}
+    if val_rmse < best_validation_score:
+        best_validation_score = val_rmse
+        best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'validation_rmse': val_rmse, 'validation_r2': val_r2}
         best_model = model
 
 # Close Tensorboard writer

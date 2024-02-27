@@ -47,7 +47,7 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
         writer.add_scalar("r2_mean/train", train_r2, epoch)
 
         # Evaluate model on test set, removing imputed GPP values
-        val_loss, val_r2, val_mae, y_pred = test_loop(val_dl, model, DEVICE)
+        val_loss, val_r2, val_rmse, y_pred = test_loop(val_dl, model, DEVICE)
         
         # Log tensorboard testing values
         writer.add_scalar("mse_loss/validation", val_loss, epoch)
@@ -61,7 +61,7 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
             best_model = model.state_dict()
             # Save the best model's R2 score
             best_r2 = val_r2
-            best_mae = val_mae
+            best_rmse = val_rmse
 
             patience_counter = 0  # Reset patience counter
         else:
@@ -76,7 +76,7 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
     if best_model:
         model.load_state_dict(best_model)
 
-    return best_r2, best_mae, model
+    return best_r2, best_rmse, model
 
 
 

@@ -4,7 +4,7 @@
 # Import dependencies
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import r2_score, mean_absolute_error
+from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error
 import numpy as np
 
 def custom_loss(outputs, targets, masks):
@@ -115,10 +115,12 @@ def test_loop(dataloader, model, DEVICE):
     # Initiate testing losses, to aggregate over sites (if there are more than one)
     test_loss = 0.0
     test_r2 = 0.0
-    test_mae = 0.0
+    test_rmse = 0.0
 
-    # Initiate counter for number of sites used to average the R2 score
-    n_sites = 0
+    # Initiate counter for number of batches used to average the R2 score
+    n_batches = 0
+
+    all_y_pred = []
 
     # Stop computing gradients during the following code chunk
     with torch.no_grad():
@@ -141,24 +143,24 @@ def test_loop(dataloader, model, DEVICE):
             # Compute test MSE on testing data (including imputed values)
             test_loss += custom_loss(y_pred, y, padding_mask)
 
-            # Transform prediction tensor into numpy array
+            padding_mask = padding_mask.detach().cpu().numpy()
+            y_true = y.detach().cpu().numpy()
             y_pred = y_pred.detach().cpu().numpy()
-
-            # Get mask as a Boolean list, from the torch tensor given by the data loader
-            # mask = mask.numpy()[0]
-
-            y_true = y.detach().cpu().numpy()[mask.squeeze()].flatten()
-            y_pred = y_pred[mask.squeeze()].flatten()
+            joint_mask = (padding_mask * mask.numpy()).squeeze()
 
             # Compute R2 on non-imputed testing data
-            test_r2 += r2_score(y_true = y_true, y_pred = y_pred)
-            test_mae += mean_absolute_error(y_true = y_true, y_pred = y_pred)
+            test_r2 += r2_score(y_true = y_true[joint_mask], y_pred = y_pred[joint_mask])
+            test_rmse += root_mean_squared_error(y_true = y_true[joint_mask], y_pred = y_pred[joint_mask])
+
+            y_pred[~mask.squeeze()] = np.nan
+
+            all_y_pred.append(y_pred[padding_mask.squeeze()])
             
-            n_sites += 1  # Increase counter
+            n_batches += 1  # Increase counter
             
 
     # Return computed testing loss
-    return test_loss/n_sites, test_r2/n_sites, test_mae/n_sites, y_pred
+    return test_loss/n_batches, test_r2/n_batches, test_rmse/n_batches, all_y_pred
 
 
 def test_loop_cat(dataloader, model, DEVICE):
