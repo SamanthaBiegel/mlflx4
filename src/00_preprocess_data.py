@@ -98,6 +98,13 @@ for file in csv_files:
 # Merge all the dataframes together
 merged_df = pd.concat(dataframes, ignore_index=True).set_index("sitename")
 
+# Data cleaning
+merged_df = merged_df[merged_df["PA_F"] > 0]
+merged_df = merged_df[merged_df["TA_F_MDS"] > -50]
+merged_df = merged_df[merged_df["TA_DAY_F_MDS"] > -50]
+merged_df = merged_df[merged_df["TA_NIGHT_F_MDS"] > -50]
+merged_df = merged_df[merged_df["LW_IN_F_MDS"] < 1000]
+
 # Read metadata from FLUXNET sites to obtain aridity index (ai)
 # This file was provided by Beni and includes only 53 sites, in the future it may
 # contain more variables to extend the flux data, but the pipeline to obtain
