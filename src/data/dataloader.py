@@ -100,6 +100,7 @@ class gpp_dataset(Dataset):
             train_std (float): Standard deviation of training data for scaling features.
         """
         self.test = test
+        self.data = x
         
         # Select numeric variables only, without GPP
         x_num = x.select_dtypes(include = ['int', 'float'])

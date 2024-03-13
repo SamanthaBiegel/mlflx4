@@ -71,9 +71,7 @@ for i in tqdm(range(args.num_trials)):
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     train_dl = DataLoader(train_ds, batch_size = batch_size, shuffle = True)
-    val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = True)
-
-
+    val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = False)
 
     # Call the train_model function with the current set of hyperparameters
     val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
@@ -91,11 +89,11 @@ writer.close()
 
 # Get the current date and time for the filename
 current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
-output_file_name = f"best_model_{current_datetime}"
+output_file_name = f"best_dnn_model_{current_datetime}"
 
 # Save the best model and hyperparameters
 torch.save(best_model.state_dict(), f"../models/{output_file_name}.pt")
 with open(f"../models/{output_file_name}_hyperparameters.txt", 'w') as f:
     f.write(str(best_hyperparameters))
 
-print("Best Model Hyperparameters:", best_hyperparameters)
+print("Best DNN Model Hyperparameters:", best_hyperparameters)

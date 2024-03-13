@@ -38,10 +38,10 @@ parser.add_argument('-p', '--patience', default=10, type=int,
 parser.add_argument('-b', '--batch_size', default=16, type=int,
                     help='Batch size for training the model')
 
-parser.add_argument('-d', '--hidden_dim', default=128, type=int,
+parser.add_argument('-d', '--hidden_dim', default=256, type=int,
                     help='Hidden dimension of the DNN model')
 
-parser.add_argument('-l', '--learning_rate', default=0.001, type=float,
+parser.add_argument('-l', '--learning_rate', default=0.01, type=float,
                     help='Learning rate for the optimizer')
 
 args = parser.parse_args()
@@ -63,6 +63,28 @@ sites = data.index.unique()
 # Get data dimensions to match DNN model dimensions
 INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
 
+def generate_filename(base_path, n_epochs, patience, batch_size, learning_rate, hidden_units):
+        # Format learning rate to avoid using '.' in file names
+        lr_formatted = f"{learning_rate:.0e}".replace('-', 'm').replace('.', 'p')
+        
+        # Get current date and time
+        current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
+        
+        # Generate filename
+        filename = (f"dnn_lfo_alldata_epochs{n_epochs}_patience{patience}"
+                        f"_bs{batch_size}_lr{lr_formatted}_hu{hidden_units}"
+                        f"_{current_datetime}")
+        return f"{base_path}/{filename}"
+
+# Constants
+base_path = "../models"
+
+# Generate filename
+filename = generate_filename(base_path, args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_dim)
+
+# Process and save predictions dataframe
+df_out = data.loc[:, ['TIMESTAMP','GPP_NT_VUT_REF']].copy()
+
 # Initialise data.frame to store GPP predictions, from the trained DNN model
 y_pred_sites = {}
 
@@ -77,6 +99,9 @@ grouped['ai_bins'] = pd.qcut(grouped['ai'], 2, labels=False).astype(str)
 
 # Combine discretized columns into a single categorical column for stratification
 grouped['combined_target'] = grouped['TA_F_MDS_bins'] + '_' + grouped['ai_bins']
+
+all_r2 = []
+all_rmse = []
 
 kf = StratifiedKFold(n_splits=5, shuffle=True)
 for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['combined_target'])):
@@ -98,7 +123,7 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     val_ds = gpp_dataset(data_val, train_mean, train_std)
 
     train_dl = DataLoader(train_ds, batch_size = args.batch_size, shuffle = True)
-    val_dl = DataLoader(val_ds, batch_size = args.batch_size, shuffle = True)
+    val_dl = DataLoader(val_ds, batch_size = args.batch_size, shuffle = False)
 
     ## Define the model to be trained
     # Initialise the DNN model, set layer dimensions to match data
@@ -117,8 +142,8 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
 
     # Return best validation R2 score and the center used to normalize training data (repurposed for testing on leaf-out site)
     best_r2, best_rmse, model = train_model(train_dl, val_dl,
-                                                 model, optimizer, writer,
-                                                 args.n_epochs, args.device, args.patience)
+                                                model, optimizer, writer,
+                                                args.n_epochs, args.device, args.patience)
     
     print(f"Validation scores for fold {i+1}: R2 = {best_r2:.4f} | RMSE = {best_rmse:.4f}")
 
@@ -160,29 +185,14 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
         y_pred_sites[s] = y_pred[j]
 
     print(f"Test scores for fold {i+1}: R2 = {r2_test:.4f} | RMSE = {rmse_test:.4f}")
+
+    all_r2.append(r2_test)
+    all_rmse.append(rmse_test)
+
     print("")
 
-def generate_filename(base_path, n_epochs, patience, batch_size, learning_rate, hidden_units):
-    # Format learning rate to avoid using '.' in file names
-    lr_formatted = f"{learning_rate:.0e}".replace('-', 'm').replace('.', 'p')
-    
-    # Get current date and time
-    current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
-    
-    # Generate the filename
-    filename = (f"dnn_lso_alldata_epochs{n_epochs}_patience{patience}"
-                       f"_bs{batch_size}_lr{lr_formatted}_hu{hidden_units}"
-                       f"_{current_datetime}")
-    return f"{base_path}/{filename}"
+print(f"DNN - Mean R2: {np.mean(all_r2):.4f} | Mean RMSE: {np.mean(all_rmse):.4f}")
 
-# Constants
-base_path = "../models"
-
-# Generate filename
-filename = generate_filename(base_path, args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_dim)
-
-# Process and save predictions dataframe
-df_out = data.loc[:, ['TIMESTAMP','GPP_NT_VUT_REF']].copy()
 for s in y_pred_sites.keys():
     df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = np.asarray(y_pred_sites.get(s))
 

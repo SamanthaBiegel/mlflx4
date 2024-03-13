@@ -46,10 +46,21 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
         writer.add_scalar("mse_loss/train", train_loss, epoch)
         writer.add_scalar("r2_mean/train", train_r2, epoch)
 
-        # Evaluate model on test set, removing imputed GPP values
+        # Evaluate model on val set, removing imputed GPP values
         val_loss, val_r2, val_rmse, y_pred = test_loop(val_dl, model, DEVICE)
+
+        data_val_eval = val_dl.dataset.data.copy()
+        data_val_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
+
+        # filter inputs for nans
+        nan_y_true = data_val_eval["GPP_NT_VUT_REF"].isna()
+        nan_y_pred = data_val_eval["gpp_pred"].isna()
+        data_val_eval = data_val_eval[~(nan_y_true | nan_y_pred)]
+
+        r2_val = r2_score(y_true = data_val_eval["GPP_NT_VUT_REF"], y_pred = data_val_eval["gpp_pred"])
+        rmse_val = root_mean_squared_error(y_true = data_val_eval["GPP_NT_VUT_REF"], y_pred = data_val_eval["gpp_pred"])
         
-        # Log tensorboard testing values
+        # Log tensorboard validation values
         writer.add_scalar("mse_loss/validation", val_loss, epoch)
         writer.add_scalar("r2_mean/validation", val_r2, epoch)
 
@@ -60,8 +71,8 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
             # Save the best model's state dictionary
             best_model = model.state_dict()
             # Save the best model's R2 score
-            best_r2 = val_r2
-            best_rmse = val_rmse
+            best_r2 = r2_val
+            best_rmse = rmse_val
 
             patience_counter = 0  # Reset patience counter
         else:
@@ -140,7 +151,7 @@ def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, 
         writer.add_scalar("mse_loss/train", train_loss, epoch)
         writer.add_scalar("r2_mean/train", train_r2, epoch)         # summed R2, will not be in [0,1] 
 
-        # Evaluate model on test set, removing imputed GPP values
+        # Evaluate model on val set, removing imputed GPP values
         val_loss, val_r2, y_pred = test_loop_cat(val_dl, model, DEVICE)
         
         # Log tensorboard testing values

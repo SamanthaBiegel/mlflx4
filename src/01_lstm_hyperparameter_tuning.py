@@ -33,11 +33,11 @@ set_seed(40)
 data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0, parse_dates=['TIMESTAMP'])
 
 # Hyperparameter tuning setup
-batch_sizes_list = [16, 32, 64]
-hidden_dim_list = [32, 64, 128, 256]
+batch_sizes_list = [16, 32, 64, 128]
+hidden_dim_list = [32, 64, 128, 256, 512]
 learning_rates_list = [1e-2, 1e-3, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
 dropout_list = [0.1, 0.2, 0.3, 0.4, 0.5]
-num_layers_list = [1, 2, 3, 4]
+num_layers_list = [1, 2, 3, 4, 5]
 
 best_model = None
 best_hyperparameters = None
@@ -76,17 +76,17 @@ for i in tqdm(range(args.num_trials)):
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
         train_dl = DataLoader(train_ds, batch_size = batch_size, shuffle = True)
-        val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = True)
+        val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = False)
 
         # Call the train_model function with the current set of hyperparameters
-        val_r2, val_mae, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
+        val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
         
-        print(f"R2 Score: {val_r2:.4f} | MAE: {val_mae:.4f}")
+        print(f"R2 Score: {val_r2:.4f} | MAE: {val_rmse:.4f}")
 
         # Update best model if current model is better
-        if val_mae < best_validation_score:
-            best_validation_score = val_mae
-            best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'dropout': dropout, 'num_layers': num_layers, 'validation_mae': val_mae, 'validation_r2': val_r2}
+        if val_rmse < best_validation_score:
+            best_validation_score = val_rmse
+            best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'dropout': dropout, 'num_layers': num_layers, 'validation_rmse': val_rmse, 'validation_r2': val_r2}
             best_model = model
     except:
         print("An error occurred during training. Skipping this trial.")
@@ -96,11 +96,11 @@ writer.close()
 
 # Get the current date and time for the filename
 current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
-output_file_name = f"best_model_{current_datetime}"
+output_file_name = f"best_lstm_model_{current_datetime}"
 
 # Save the best model and hyperparameters
 torch.save(best_model.state_dict(), f"../models/{output_file_name}.pt")
 with open(f"../models/{output_file_name}_hyperparameters.txt", 'w') as f:
     f.write(str(best_hyperparameters))
 
-print("Best Model Hyperparameters:", best_hyperparameters)
+print("Best LSTM Model Hyperparameters:", best_hyperparameters)
