@@ -33,9 +33,6 @@ class gpp_dataset_cat(Dataset):
         # Define target        
         self.y = torch.tensor(x['GPP_NT_VUT_REF'].values,
                               dtype = torch.float32)
-        
-        # Define mask for imputed values
-        self.mask = ~x['imputed'].values
 
         # Define vector of sites corresponding to the rows in x
         # to be used for indexing
@@ -57,12 +54,11 @@ class gpp_dataset_cat(Dataset):
 
         Returns:
             Thruple of numerical and categorical covariates and target variable for the specified site.
-            A vector with the mask for imputed values is also returned.
         """
         
         # Select rows corresponding to site idx
         rows = [s == self.sites[idx] for s in self.sitename]
-        return self.x[rows], self.y[rows], self.c[rows], self.mask[rows]
+        return self.x[rows], self.y[rows], self.c[rows]
   
     def __len__(self):
         """
@@ -117,9 +113,6 @@ class gpp_dataset(Dataset):
         # Define target        
         self.y = torch.tensor(x['GPP_NT_VUT_REF'].values,
                               dtype = torch.float32)
-        
-        # Define mask for imputed values
-        self.mask = torch.tensor(~x['imputed'].values, dtype = torch.bool)
 
         # get max number of samples in one site
         self.max_samples = x.index.value_counts().max()
@@ -139,18 +132,15 @@ class gpp_dataset(Dataset):
                 
                 x_site = self.x[site_mask]
                 y_site = self.y[site_mask]
-                mask_site = self.mask[site_mask]
 
                 num_rows = x_site.shape[0]
 
                 x_final[i, :num_rows, :] = x_site
                 y_final[i, :num_rows] = y_site
-                mask_final[i, :num_rows] = mask_site
                 mask_padding[i, :num_rows] = torch.ones(num_rows)
 
             self.x = x_final
             self.y = y_final
-            self.mask = mask_final.bool()
             self.mask_padding = mask_padding.bool()
             self.len = len(self.sites)
         else:
@@ -168,13 +158,13 @@ class gpp_dataset(Dataset):
 
         Returns:
             Tuple of numerical covariates and target variable for the specified site.
-            A vector with the mask for imputed values is also returned.
+            A vector with the mask for padded values is also returned.
         """
         if not self.test:
-            return self.x[idx,:,:], self.y[idx,:], self.mask[idx,:], self.mask_padding[idx,:]
+            return self.x[idx,:,:], self.y[idx,:], self.mask_padding[idx,:]
         else:
             rows = [s == self.sites[idx] for s in self.sitename]
-            return self.x[rows], self.y[rows], self.mask[rows], self.mask_padding[rows]
+            return self.x[rows], self.y[rows], self.mask_padding[rows]
   
     def __len__(self):
         """

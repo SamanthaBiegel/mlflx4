@@ -60,8 +60,8 @@ print(f"> Device: {args.device}")
 print(f"> Epochs: {args.n_epochs}")
 print(f"> Early stopping after {args.patience} epochs without improvement")
 
-# Read imputed data, including variables for stratified train-test split and imputation flag
-data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
+# Read data, including variables for stratified train-test split
+data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col='sitename', parse_dates=['TIMESTAMP'])
 
 # Create list of sites for leave-site-out cross validation
 sites = data.index.unique()
@@ -168,13 +168,9 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
 
     # Format pytorch dataset for the data loader
     test_ds = gpp_dataset(data_test, train_mean, train_std, test = False)
-
-    # Run data loader with batch_size = 1
-    # Due to different time series lengths per site,
-    # we cannot load several sites per batch
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = False)
 
-    # Evaluate model on test set, removing imputed GPP values
+    # Evaluate model on test set
     test_loss, test_r2, test_rmse, y_pred = test_loop(test_dl, model, args.device)
 
     data_test_eval = data_test.copy()

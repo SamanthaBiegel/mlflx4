@@ -51,8 +51,8 @@ print(f"> Device: {args.device}")
 print(f"> Epochs: {args.n_epochs}")
 print(f"> Early stopping after {args.patience} epochs without improvement")
 
-# Read imputed data, including variables for stratified train-test split and imputation flag
-data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
+# Read data, including variables for stratified train-test split
+data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col=0)
 
 # Create list of sites for leave-site-out cross validation
 sites = data.index.unique()
@@ -132,7 +132,7 @@ for s in sites:
     # we cannot load several sites per batch
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = True)
 
-    # Evaluate model on test set, removing imputed GPP values
+    # Evaluate model on test set
     test_loss, test_r2, test_mae, y_pred = test_loop(test_dl, model, args.device)
 
     # Save prediction for the left-out site

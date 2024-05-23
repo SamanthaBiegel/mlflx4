@@ -54,8 +54,8 @@ print(f"> Epochs: {args.n_epochs}")
 print(f"> Early stopping after {args.patience} epochs without improvement")
 print(f"Hidden dimension of LSTM model: {args.hidden_dim}")
 
-# Read imputed data
-data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
+# Read data
+data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col=0)
 
 # Read raw data to compute bias
 df_out = pd.read_csv('../data/raw/df_20210510.csv', index_col=0)[['date', 'GPP_NT_VUT_REF']]
@@ -144,7 +144,7 @@ for s in sites:
     # we cannot load several sites per batch
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = True)
 
-    # Evaluate model on test set, removing imputed GPP values
+    # Evaluate model on test set
     test_loss, test_r2, y_pred = test_loop(test_dl, model, args.device)
 
     # Save prediction for the left-out site
@@ -171,7 +171,7 @@ for s in sites:
         # we cannot load several sites per batch
         test_dl = DataLoader(test_ds_other, batch_size = 1, shuffle = True)
 
-        # Evaluate model on test set, removing imputed GPP values
+        # Evaluate model on test set
         test_loss_other, test_r2_other, y_pred_other = test_loop(test_dl, model, args.device)
 
         # Compute prediction bias, save to aggregate later

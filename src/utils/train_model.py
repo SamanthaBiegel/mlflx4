@@ -40,14 +40,13 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
         
         # Perform one round of training, doing backpropagation for each training site
         # Obtain the cumulative MSE (training loss) and R2
-        train_loss, train_r2 = train_loop(train_dl, model, optimizer, DEVICE)
+        train_loss = train_loop(train_dl, model, optimizer, DEVICE)
 
         # Log tensorboard training values
         writer.add_scalar("mse_loss/train", train_loss, epoch)
-        writer.add_scalar("r2_mean/train", train_r2, epoch)
 
-        # Evaluate model on val set, removing imputed GPP values
-        val_loss, val_r2, val_rmse, y_pred = test_loop(val_dl, model, DEVICE)
+        # Evaluate model on val set
+        val_loss, y_pred = test_loop(val_dl, model, DEVICE)
 
         data_val_eval = val_dl.dataset.data.copy()
         data_val_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
@@ -62,11 +61,10 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
         
         # Log tensorboard validation values
         writer.add_scalar("mse_loss/validation", val_loss, epoch)
-        writer.add_scalar("r2_mean/validation", val_r2, epoch)
+        writer.add_scalar("r2_mean/validation", r2_val, epoch)
 
         # Save the model from the best epoch, based on the validation loss
         if val_loss <= best_loss:
-
             best_loss = val_loss
             # Save the best model's state dictionary
             best_model = model.state_dict()
@@ -151,7 +149,7 @@ def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, 
         writer.add_scalar("mse_loss/train", train_loss, epoch)
         writer.add_scalar("r2_mean/train", train_r2, epoch)         # summed R2, will not be in [0,1] 
 
-        # Evaluate model on val set, removing imputed GPP values
+        # Evaluate model on val set
         val_loss, val_r2, y_pred = test_loop_cat(val_dl, model, DEVICE)
         
         # Log tensorboard testing values

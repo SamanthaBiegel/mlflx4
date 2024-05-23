@@ -63,7 +63,7 @@ def train_test_split_chunks(df):
         chunks_train = train_df.index
         chunks_val = val_df.index
 
-    # Separate the time series data (including the imputed values mask in the last column)
+    # Separate the time series data
     df_train = df.loc[[any(site == s for s in chunks_train) for site in df.index]]
     df_val = df.loc[[any(site == s for s in chunks_val) for site in df.index]]
 

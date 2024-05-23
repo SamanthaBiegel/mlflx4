@@ -30,7 +30,7 @@ args = parser.parse_args()
 set_seed(40)
 
 # Load and preprocess the entire dataset
-data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0, parse_dates=['TIMESTAMP'])
+data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col="sitename", parse_dates=['TIMESTAMP'])
 
 # Hyperparameter tuning setup
 batch_sizes_list = [16, 32, 64, 128, 256]

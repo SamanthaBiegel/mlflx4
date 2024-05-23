@@ -50,8 +50,8 @@ print(f"> Condition on categorical variables: {args.conditional}")
 print(f"> Early stopping after {args.patience} epochs without improvement")
 print(f"Hidden dimension of LSTM model: {args.hidden_dim}")
 
-# Read imputed data, including variables for stratified train-test split and imputation flag
-data = pd.read_csv('../data/processed/df_imputed.csv', index_col=0)
+# Read data, including variables for stratified train-test split
+data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col=0)
 
 # Create list of sites for leave-site-out cross validation
 sites = data.index.unique()
@@ -114,12 +114,12 @@ for s in sites:
         best_r2, train_mean, train_std = train_model_cat(data_train, data_cat_train,
                                 model, optimizer, writer,
                                 args.n_epochs, args.device,
-                                args.patience)
+                                args.patience, batch_size=16)
     else:
         best_r2, train_mean, train_std = train_model(data_train,
                             model, optimizer, writer,
                             args.n_epochs, args.device,
-                            args.patience)
+                            args.patience, batch_size=16)
         
     print(f"Validation R2 score for site {s}:  {best_r2}")
     
@@ -147,7 +147,7 @@ for s in sites:
     # we cannot load several sites per batch
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = True)
 
-    # Evaluate model on test set, removing imputed GPP values
+    # Evaluate model on test set
     if(args.conditional):
         test_loss, test_r2, y_pred = test_loop_cat(test_dl, model, args.device)
     else:
