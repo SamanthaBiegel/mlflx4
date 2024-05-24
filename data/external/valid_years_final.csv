@@ -1,0 +1,318 @@
+Site,start_year,end_year,years,comment
+DE-Hai,2000,2020,21,
+BE-Vie,1996,2020,20,LAI starts from 2001
+CA-Cbo,2001,2020,20,LAI starts from 2001
+DE-Geb,2001,2020,20,
+DE-Tha,1997,2020,20,LAI starts from 2001
+SE-Deg,2001,2020,20,LAI starts from 2001
+US-Me2,2001,2020,20,LAI starts from 2001
+IT-MBo,2003,2020,18,
+CZ-BK1,2004,2020,17,
+DE-Gri,2004,2020,17,
+FR-Gri,2004,2020,17,
+GF-Guy,2004,2020,17,
+FR-Aur,2005,2020,16,
+FR-Fon,2005,2020,16,
+US-GLE,2005,2020,16,
+US-Ho2,2005,2020,16,Some GPP data missing – use for testing
+BE-Bra,2001,2020,15,LAI starts from 2001
+CA-TP3,2003,2017,15,
+US-MOz,2005,2019,15,
+BE-Lon,2004,2017,14,
+DE-Kli,2007,2020,14,
+IT-Col,2001,2014,14,LAI starts from 2001
+NL-Loo,1996,2018,14,LAI starts from 2001
+RU-Fyo,1998,2014,14,LAI starts from 2001
+US-Ton,2001,2014,14,
+US-UMd,2007,2021,14,
+US-Var,2001,2021,14,LAI starts from 2001
+US-Wjs,2008,2021,14,
+CA-TP4,2002,2014,13,
+FR-FBn,2008,2020,13,
+IT-Ren,2001,2014,13,LAI starts from 2001
+IT-Tor,2008,2020,13,
+US-ARM,2008,2020,13,
+US-ICs,2008,2020,13,
+US-Mpj,2008,2020,13,
+US-Ro1,2004,2016,13,
+CA-TP1,2003,2014,12,
+FR-Pue,2001,2013,12,LAI starts from 2001
+IT-Lav,2003,2020,12,
+RU-Cok,2003,2014,12,
+US-BZS,2010,2021,12,
+US-KFS,2008,2019,12,
+AT-Neu,2002,2012,11,
+CH-Dav,1997,2009,11,LAI starts from 2001
+CH-Lae,2004,2020,11,
+FI-Hyy,1996,2017,11,LAI starts from 2001
+IT-Noe,2004,2014,11,
+US-BZB,2011,2021,11,
+US-BZF,2011,2021,11,
+US-Myb,2011,2021,11,
+US-NR1,1999,2017,11,
+US-SRM,2004,2014,11,
+BE-Dor,2011,2020,10,
+CA-Gro,2004,2014,10,2014 gpp and le seem spurious
+CA-Oas,2001,2010,10,LAI starts from 2001
+CA-Obs,2001,2010,10,LAI starts from 2001
+DK-Sor,1997,2013,10,
+IT-Ro2,2002,2011,10,
+US-ICt,2012,2021,10,
+US-Jo2,2010,2020,10,
+US-Oho,2004,2013,10,
+US-Tw1,2011,2020,10,
+US-Wkg,2005,2021,10,
+CA-LP1,2007,2015,9,
+CZ-wet,2006,2014,9,
+DE-RuR,2012,2020,9,
+DE-RuS,2012,2020,9,
+DE-RuW,2012,2020,9,
+IT-Cpz,2001,2009,9,missing LE/GPP in last year – test with this
+CA-Man,2001,2008,8,
+FR-LBr,2001,2008,8,LAI starts from 2001
+IT-BCi,2004,2011,8,missing netrad and possible sensor change after 2011/12
+IT-SRo,2001,2008,8,LAI starts from 2001
+NL-Hor,2004,2011,8,
+US-Los,2001,2008,8,LAI starts from 2001
+US-Ro4,2014,2021,8,
+US-Syv,2001,2008,8,LAI starts from 2001
+US-WCr,1999,2006,8,
+AU-DaS,2008,2017,7,
+AU-Sam,2011,2017,7,
+CA-Qfo,2004,2010,7,
+CH-Cha,2006,2020,7,
+CH-Fru,2006,2020,7,
+CZ-BK2,2006,2012,7,missing netrad in cold months
+DE-Hzd,2010,2016,7,too much missing NETRAD after 2016
+DE-Obe,2008,2020,7,
+FI-Sod,2008,2014,7,
+FR-Hes,2014,2020,7,
+MY-PSO,2003,2009,7,
+SE-Nor,2014,2020,7,
+US-Blo,2001,2007,7,LAI starts from 2001
+US-IB2,2005,2011,7,
+US-KLS,2013,2019,7,
+US-SRC,2008,2014,7,
+US-SRG,2008,2014,7,
+US-Whs,2008,2015,7,
+AU-Cow,2010,2015,6,
+AU-DaP,2008,2013,6,
+AU-Dry,2009,2014,6,
+CA-ER1,2015,2020,6,
+CA-TPD,2012,2017,6,
+CZ-Lnz,2015,2020,6,
+DE-HoH,2015,2020,6,
+IT-Ro1,2001,2006,6,LAI starts from 2001
+IT-SR2,2013,2020,6,
+SE-Htm,2015,2020,6,
+US-Atq,2003,2008,6,
+US-Me3,2004,2009,6,
+US-NGB,2014,2019,6,
+US-ORv,2011,2016,6,
+US-Rms,2014,2020,6,
+US-Rwf,2015,2020,6,
+US-Rws,2015,2020,6,
+AU-How,2008,2017,5,too much missing NETRAD before 2010
+AU-Stp,2010,2017,5,
+AU-Wom,2010,2014,5,
+CA-DBB,2016,2020,5,
+CA-Qcu,2002,2006,5,
+CA-TP2,2003,2007,5,
+CH-Oe1,2002,2008,5,
+DE-Akm,2010,2014,5,
+DE-Lnf,2002,2006,5,
+FI-Sii,2016,2020,5,
+FI-Var,2016,2020,5,
+IT-Lsn,2016,2020,5,
+US-Bi1,2017,2021,5,
+US-Bi2,2017,2021,5,
+US-Me6,2010,2014,5,
+US-ONA,2016,2020,5,
+US-Ro6,2017,2021,5,
+US-Twt,2010,2014,5,
+US-xBR,2017,2021,5,
+AU-ASM,2011,2017,4,
+AU-Cpr,2011,2014,4,
+AU-Rig,2011,2014,4,
+CA-NS5,2002,2005,4,
+CA-NS6,2002,2005,4,
+CA-NS7,2002,2005,4,
+CA-SF3,2003,2006,4,
+CN-Cng,2007,2010,4,
+DE-Lkb,2010,2013,4,
+DE-Spw,2011,2014,4,
+ES-Amo,2009,2012,4,
+FI-Jok,2000,2003,4,
+FR-LGt,2017,2020,4,
+GH-Ank,2011,2014,4,
+GL-ZaH,2011,2014,4,
+HU-Bug,2003,2006,4,
+IT-Cp2,2013,2016,4,
+US-BZo,2018,2021,4,
+US-CF1,2017,2020,4,
+US-CF3,2018,2021,4,
+US-Goo,2003,2006,4,
+US-Ivo,2004,2007,4,
+US-KS2,2003,2006,4,
+US-Prr,2011,2014,4,
+US-Ro5,2017,2020,4,
+US-Sne,2017,2020,4,"Some netrad values > 1000, need to filter"
+US-Tw3,2014,2017,4,
+AU-Fog,2006,2008,3,
+AU-Gin,2012,2017,3,
+AU-Wac,2006,2008,3,
+AU-Whr,2012,2014,3,
+BR-Sa3,2001,2003,3,
+CA-NS1,2003,2005,3,
+CA-NS2,2002,2004,3,
+CA-NS4,2003,2005,3,
+CA-SF1,2004,2006,3,
+CA-SF2,2003,2005,3,
+CG-Tch,2007,2009,3,
+CN-Cha,2003,2005,3,
+CN-Din,2003,2005,3,
+CN-Ha2,2003,2005,3,
+CN-HaM,2002,2004,3,
+CN-Qia,2003,2005,3,
+DE-Bay,1997,1999,3,
+DE-Seh,2008,2010,3,
+DK-ZaH,2011,2013,3,missing netrad from 2000-2011
+ES-LgS,2007,2009,3,
+FI-Let,2010,2020,3,
+FI-Lom,2007,2009,3,
+FR-Tou,2018,2020,3,
+GL-NuF,2012,2014,3,
+IT-PT1,2002,2004,3,
+PA-SPs,2007,2009,3,
+SN-Dhr,2011,2013,3,
+US-AR1,2010,2012,3,
+US-AR2,2010,2012,3,
+US-Aud,2003,2005,3,
+US-CF2,2018,2020,3,
+US-CRT,2011,2013,3,
+US-CS2,2019,2021,3,
+US-GBT,2001,2003,3,no GPP data outside these years
+US-WPT,2011,2013,3,
+ZA-Kru,2000,2002,3,
+AU-Cum,2013,2018,2,
+AU-Emr,2012,2013,2,
+AU-Lit,2016,2017,2,
+AU-TTE,2013,2014,2,
+AU-Wrr,2016,2017,2,
+BE-Lcr,2019,2020,2,
+BR-Npw,2015,2016,2,
+CA-NS3,2004,2005,2,TA is missing for 2003
+CN-Dan,2004,2005,2,
+DE-SfN,2013,2014,2,
+DK-Eng,2006,2007,2,
+IT-CA3,2012,2013,2,GPP trend might be spurious
+IT-Isp,2013,2014,2,
+IT-LMa,2003,2004,2,
+PA-SPn,2007,2008,2,
+PE-QFR,2018,2019,2,
+RU-Ha1,2003,2004,2,
+SD-Dem,2008,2009,2,
+SJ-Adv,2013,2014,2,
+US-ARb,2005,2006,2,
+US-ARc,2005,2006,2,
+US-EDN,2018,2019,2,"Some data missing from both years, but included"
+US-HWB,2016,2017,2,
+US-LWW,1997,1998,2,
+US-Me5,2000,2001,2,
+US-Rwe,2006,2007,2,
+US-UM3,2013,2014,2,
+AR-SLu,2010,2010,1,
+AR-TF1,,,1,missing NETRAD or GPP_DT
+AR-Vir,,,1,Too little overlapping data
+AU-Ade,2008,2008,1,
+AU-Ctr,,,1,missing NETRAD or GPP_DT
+AU-GWW,,,1,too much missing NETRAD
+AU-Lox,,,1,"too much missing NETRAD, LE"
+AU-Otw,,,1,missing NETRAD or GPP_DT
+AU-RDF,2012,2012,1,
+AU-Rob,2014,2014,1,
+AU-Ync,2012,2017,1,GPP in 2014 seems spurious
+BE-Maa,,,1,missing NETRAD or GPP_DT
+BW-Ma1,,,1,missing NETRAD or GPP_DT
+CA-DB2,2020,2020,1,
+CH-Oe2,,,1,missing NETRAD or GPP_DT
+CN-Du2,2008,2008,1,
+CN-Du3,,,1,No overlapping nonmissing vars
+CN-Sw2,2011,2011,1,GPP doesnt seem realistic
+DE-Meh,,,1,missing NETRAD or GPP_DT
+DE-Wet,,,1,missing NETRAD or GPP_DT
+DE-Zrk,2014,2014,1,
+DK-Fou,2005,2005,1,
+DK-Gds,,,1,missing NETRAD or GPP_DT
+DK-Lva,,,1,missing NETRAD or GPP_DT
+DK-Ris,,,1,missing NETRAD or GPP_DT
+ES-ES1,,,1,missing NETRAD or GPP_DT
+ES-ES2,,,1,missing NETRAD or GPP_DT
+ES-LJu,,,1,missing NETRAD or GPP_DT
+ES-LMa,,,1,missing NETRAD or GPP_DT
+ES-Ln2,,,1,missing NETRAD or GPP_DT
+ES-VDA,,,1,missing NETRAD or GPP_DT
+FI-Kaa,,,1,missing NETRAD or GPP_DT
+FI-Ken,,,1,missing NETRAD or GPP_DT
+FR-Lq1,,,1,missing NETRAD or GPP_DT
+FR-Lq2,,,1,missing NETRAD or GPP_DT
+GL-Dsk,,,1,missing NETRAD or GPP_DT
+GL-ZaF,,,1,Almost no NETRAD data
+ID-Pag,,,1,missing NETRAD or GPP_DT
+IE-Ca1,,,1,missing NETRAD or GPP_DT
+IE-Dri,,,1,missing NETRAD or GPP_DT
+IT-Amp,,,1,missing NETRAD or GPP_DT
+IT-CA1,2012,2012,1,
+IT-CA2,2012,2012,1,
+IT-La2,2001,2001,1,
+IT-Mal,,,1,missing NETRAD or GPP_DT
+IT-Non,,,1,missing NETRAD or GPP_DT
+JP-MBF,,,1,missing NETRAD or GPP_DT
+JP-SMF,,,1,missing NETRAD or GPP_DT
+NL-Ca1,,,1,missing NETRAD or GPP_DT
+PL-wet,,,1,missing NETRAD or GPP_DT
+PT-Esp,,,1,missing NETRAD or GPP_DT
+PT-Mi1,,,1,missing NETRAD or GPP_DT
+PT-Mi2,,,1,missing NETRAD or GPP_DT
+RU-Che,,,1,Data too sparse
+RU-Zot,,,1,missing NETRAD or GPP_DT
+SE-Svb,,,1,missing NETRAD or GPP_DT
+UK-Gri,,,1,missing NETRAD or GPP_DT
+UK-Ham,,,1,missing NETRAD or GPP_DT
+UK-PL3,,,1,missing NETRAD or GPP_DT
+US-A32,2016,2016,1,
+US-Bar,2004,2017,1,
+US-Bkg,,,1,missing NETRAD or GPP_DT
+US-Bo1,,,1,missing NETRAD or GPP_DT
+US-CF4,,,1,missing NETRAD or GPP_DT
+US-CS1,,,1,Almost no overlapping data
+US-CS3,,,1,Almost no overlapping data
+US-CS4,,,1,Almost no overlapping data
+US-FPe,,,1,missing NETRAD or GPP_DT
+US-HB1,,,1,missing NETRAD or GPP_DT
+US-Hn3,2018,2018,1,
+US-Ho1,,,1,missing NETRAD or GPP_DT
+US-KS1,2002,2002,1,Initial LE data spurious but not too bad
+US-Lin,2010,2010,1,
+US-Me1,,,1,Too little overlapping data
+US-Me4,,,1,too much spurious or missing data
+US-OWC,,,1,too much missing NETRAD
+US-Snf,2019,2019,1,
+US-SP1,,,1,missing NETRAD or GPP_DT
+US-SP2,,,1,missing NETRAD or GPP_DT
+US-SP3,,,1,missing NETRAD or GPP_DT
+US-Sta,,,1,missing NETRAD or GPP_DT
+US-Tw2,,,1,Too sparse
+US-Tw4,2014,2014,1,
+US-Tw5,2019,2019,1,
+US-Wi0,,,1,Too sparse
+US-Wi1,,,1,Too sparse
+US-Wi2,,,1,Too sparse
+US-Wi3,,,1,Too sparse
+US-Wi4,,,1,Too sparse
+US-Wi5,,,1,Too sparse
+US-Wi6,,,1,Too sparse
+US-Wi7,,,1,Too sparse
+US-Wi8,,,1,Too sparse
+US-Wi9,,,1,Too sparse
+ZM-Mon,,,1,too sparse
