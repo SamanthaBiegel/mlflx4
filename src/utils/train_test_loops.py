@@ -3,6 +3,7 @@
 
 # Import dependencies
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from sklearn.metrics import r2_score, mean_absolute_error, root_mean_squared_error
 import numpy as np
@@ -14,7 +15,7 @@ def custom_loss(outputs, targets, masks):
     masked_loss = loss * masks  # Apply the mask
     return masked_loss.sum() / masks.sum()  # Normalize by the number of non-padded values
 
-def train_loop(dataloader, model, optimizer, DEVICE):
+def train_loop(dataloader, model, optimizer, DEVICE, writer, steps):
 
     # Initiate training loss, to aggregate over sites
     train_loss = 0.0
@@ -43,6 +44,13 @@ def train_loop(dataloader, model, optimizer, DEVICE):
         # Backpropagate the gradients through the model
         loss.backward()
 
+        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+
+        # Store gradients
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                writer.add_scalar(f"gradients/{name}", param.grad.norm(), steps)
+
         # Update model parameters using the optimizer
         optimizer.step()
 
@@ -53,7 +61,7 @@ def train_loop(dataloader, model, optimizer, DEVICE):
     model.eval()
 
     # Return computed training loss
-    return train_loss/n_batches
+    return train_loss/n_batches, model
 
 
 

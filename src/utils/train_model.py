@@ -6,10 +6,10 @@ import numpy as np
 # Import functions
 from data.dataloader import *
 from utils.train_test_loops import *
-from utils.train_test_split import train_test_split_chunks
+from utils.train_test_split import train_test_split_sites
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, patience):
+def train_model(train_dl, val_dl, model, optimizer, scheduler, writer, n_epochs, DEVICE, patience, early_stopping = True):
     """
     Trains a PyTorch model, using a train-validation split, with training on all training sites per epoch
     and early stopping based on the mean squared error (MSE) for validation sites.
@@ -32,62 +32,57 @@ def train_model(train_dl, val_dl, model, optimizer, writer, n_epochs, DEVICE, pa
     # Start recording loss (MSE) after each epoch, initialise at Inf
     best_loss = np.Inf
 
-    # Initialize best model
-    best_model = None
-
     # Train the model
     for epoch in range(n_epochs):
         
-        # Perform one round of training, doing backpropagation for each training site
-        # Obtain the cumulative MSE (training loss) and R2
-        train_loss = train_loop(train_dl, model, optimizer, DEVICE)
-
-        # Log tensorboard training values
-        writer.add_scalar("mse_loss/train", train_loss, epoch)
+        # Perform one round of training, doing backpropagation for each training batch
+        global_steps = len(train_dl)*epoch
+        train_loss, model = train_loop(train_dl, model, optimizer, DEVICE, writer, global_steps)
 
         # Evaluate model on val set
         val_loss, y_pred = test_loop(val_dl, model, DEVICE)
+        r2_val, rmse_val = evaluate_model(val_dl, y_pred)
 
-        data_val_eval = val_dl.dataset.data.copy()
-        data_val_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
+        scheduler.step(val_loss)
 
-        # filter inputs for nans
-        nan_y_true = data_val_eval["GPP_NT_VUT_REF"].isna()
-        nan_y_pred = data_val_eval["gpp_pred"].isna()
-        data_val_eval = data_val_eval[~(nan_y_true | nan_y_pred)]
-
-        r2_val = r2_score(y_true = data_val_eval["GPP_NT_VUT_REF"], y_pred = data_val_eval["gpp_pred"])
-        rmse_val = root_mean_squared_error(y_true = data_val_eval["GPP_NT_VUT_REF"], y_pred = data_val_eval["gpp_pred"])
-        
-        # Log tensorboard validation values
+        # Log tensorboard values
+        writer.add_scalar("mse_loss/train", train_loss, epoch)
         writer.add_scalar("mse_loss/validation", val_loss, epoch)
         writer.add_scalar("r2_mean/validation", r2_val, epoch)
+        writer.add_scalar("rmse/validation", rmse_val, epoch)
 
-        # Save the model from the best epoch, based on the validation loss
-        if val_loss <= best_loss:
-            best_loss = val_loss
-            # Save the best model's state dictionary
-            best_model = model.state_dict()
-            # Save the best model's R2 score
-            best_r2 = r2_val
-            best_rmse = rmse_val
+        if early_stopping:
+            # Save the model from the best epoch, based on the validation loss
+            if val_loss <= best_loss:
+                best_loss = val_loss
+                best_model = copy.deepcopy(model.state_dict())
+                best_r2 = r2_val
+                best_rmse = rmse_val
+                patience_counter = 0
+            else:
+                patience_counter += 1
 
-            patience_counter = 0  # Reset patience counter
-        else:
-            patience_counter += 1
+            # Check for early stopping
+            if patience_counter >= patience:
+                print(f"Early stopping at epoch {epoch}. No improvement in validation loss for {patience} epochs.")
+                model.load_state_dict(best_model)
+                return best_r2, best_rmse, model
 
-        # Check for early stopping
-        if patience_counter >= patience:
-            print(f"Early stopping at epoch {epoch}. No improvement in validation loss for {patience} epochs.")
-            break
+    return r2_val, rmse_val, model
 
-    # Load the best model's weights and return the model object
-    if best_model:
-        model.load_state_dict(best_model)
+def evaluate_model(val_dl, y_pred):
+    data_val_eval = val_dl.dataset.data.copy()
+    data_val_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
 
-    return best_r2, best_rmse, model
+    nan_y_true = data_val_eval["GPP_NT_VUT_REF"].isna()
+    nan_y_pred = data_val_eval["gpp_pred"].isna()
 
+    data_val_eval = data_val_eval[~(nan_y_true | nan_y_pred)]
 
+    r2_val = r2_score(y_true=data_val_eval["GPP_NT_VUT_REF"], y_pred=data_val_eval["gpp_pred"])
+    rmse_val = np.sqrt(np.mean((data_val_eval["GPP_NT_VUT_REF"] - data_val_eval["gpp_pred"]) ** 2))
+
+    return r2_val, rmse_val
 
 def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, patience):
     """
@@ -112,7 +107,7 @@ def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, 
     """
 
     # Separate train-val split
-    data_train, data_val, sites_train, sites_val = train_test_split_chunks(data)
+    data_train, data_val, sites_train, sites_val = train_test_split_sites(data)
 
     # Separate categorical variables into train-val
     data_cat_train = data_cat.loc[[any(site == s for s in sites_train) for site in data_cat.index]]
@@ -130,7 +125,6 @@ def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, 
     # we cannot load several sites per batch
     train_dl = DataLoader(train_ds, batch_size = 1, shuffle = True)
     val_dl = DataLoader(val_ds, batch_size = 1, shuffle = True)
-
     
     # Start recording loss (MSE) after each epoch, initialise at Inf
     best_loss = np.Inf

@@ -5,6 +5,7 @@
 
 import torch.nn as nn
 import torch
+import torch.nn.init as init
 
 
 class ModelCond(nn.Module):
@@ -58,20 +59,21 @@ class Model(nn.Module):
 
         current_dim = hidden_dim
 
-        layers = []
+        # layers = []
         
-        # Create additional layers that half the dimension each time until it reaches 16
-        while current_dim > 16:
-            next_dim = max(current_dim // 2, 16)
-            layer = nn.Sequential(
-                nn.Linear(current_dim, next_dim),
-                nn.ReLU()
-            )
-            layers.append(layer)
-            current_dim = next_dim
+        # # Create additional layers that half the dimension each time until it reaches 16
+        # while current_dim > 16:
+        #     next_dim = max(current_dim // 2, 16)
+        #     layer = nn.Sequential(
+        #         nn.Linear(current_dim, next_dim),
+        #         # nn.BatchNorm1d(next_dim),
+        #         nn.ReLU()
+        #     )
+        #     layers.append(layer)
+        #     current_dim = next_dim
         
-        # Save all layers in an nn.ModuleList
-        self.layers = nn.ModuleList(layers)
+        # # Save all layers in an nn.ModuleList
+        # self.layers = nn.ModuleList(layers)
         
         # Final linear layer for regression output to 1
         self.final_layer = nn.Linear(current_dim, 1)
@@ -82,9 +84,16 @@ class Model(nn.Module):
         x, (h,d) = self.lstm(x)
 
         # Pass the output through the rest of the layers
-        for layer in self.layers:
-            x = layer(x)
+        # for layer in self.layers:
+        #     batch_size, seq_length, feature_dim = x.shape
+        #     x = x.reshape(-1, feature_dim)
+        #     x = layer(x)
+        #     feature_dim = x.shape[-1]
+        #     x = x.reshape(batch_size, seq_length, feature_dim)
 
+        batch_size, seq_length, feature_dim = x.shape
+        x = x.reshape(-1, feature_dim)
         x = self.final_layer(x)
+        x = x.reshape(batch_size, seq_length, -1)
 
         return x

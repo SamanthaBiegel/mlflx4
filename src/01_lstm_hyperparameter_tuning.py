@@ -3,7 +3,7 @@ from models.lstm_model import Model
 from utils.utils import set_seed
 from utils.train_model import train_model
 from data.dataloader import gpp_dataset, compute_center
-from utils.train_test_split import train_test_split_chunks
+from utils.train_test_split import train_test_split_sites
 from torch.utils.data import DataLoader
 
 # Load necessary dependencies
@@ -21,6 +21,7 @@ parser = argparse.ArgumentParser(description='LSTM Hyperparameter Tuning')
 
 parser.add_argument('-device', '--device', default='cuda:0', type=str, help='Indices of GPU to enable')
 parser.add_argument('-e', '--n_epochs', default=150, type=int, help='Number of training epochs')
+parser.add_argument('-es', '--early_stopping', default=True, type=bool, help='Whether to use early stopping')
 parser.add_argument('-p', '--patience', default=10, type=int, help='Number of iterations (patience threshold) for early stopping')
 parser.add_argument('-t', '--num_trials', default=10, type=int, help='Number of trials for hyperparameter tuning')
 
@@ -35,9 +36,11 @@ data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col='sitename', pars
 # Hyperparameter tuning setup
 batch_sizes_list = [16, 32, 64, 128]
 hidden_dim_list = [32, 64, 128, 256, 512]
-learning_rates_list = [1e-2, 1e-3, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
-dropout_list = [0.1, 0.2, 0.3, 0.4, 0.5]
+learning_rates_list = [1e-1, 5e-1, 1e-2, 5e-2, 1e-3, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
+dropout_list = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 num_layers_list = [1, 2, 3, 4, 5]
+scheduler_patience_list = [10, 20, 30]
+scheduler_factor_list = [0.1, 0.5, 0.9]
 
 best_model = None
 best_hyperparameters = None
@@ -46,10 +49,10 @@ best_validation_score = np.inf
 # Tensorboard writer setup (optional)
 writer = SummaryWriter(log_dir=f"../models/runs/hyperparameter_tuning")
 
-INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
+INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
 
 # Separate train-val split
-data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data)
+data_train, data_val, sites_train, sites_val = train_test_split_sites(data)
 
 # Calculate mean and standard deviation to normalize the data
 train_mean, train_std = compute_center(data_train)
@@ -66,27 +69,30 @@ for i in tqdm(range(args.num_trials)):
         lr = np.random.choice(learning_rates_list)
         dropout = np.random.choice(dropout_list)
         num_layers = int(np.random.choice(num_layers_list))
+        scheduler_patience = int(np.random.choice(scheduler_patience_list))
+        scheduler_factor = np.random.choice(scheduler_factor_list)
 
-        print(f"Trial {i+1}/{args.num_trials} | Batch Size: {batch_size} | Hidden Units: {hidden_dim} | Learning Rate: {lr} | Dropout: {dropout} | Num Layers: {num_layers}")
+        print(f"Trial {i+1}/{args.num_trials} | Batch Size: {batch_size} | Hidden Units: {hidden_dim} | Learning Rate: {lr} | Dropout: {dropout} | Num Layers: {num_layers} | Scheduler Patience: {scheduler_patience} | Scheduler Factor: {scheduler_factor}")
 
         # Initialize the model
         model = Model(input_dim=INPUT_FEATURES, hidden_dim=hidden_dim, num_layers=num_layers, dropout=dropout).to(device = args.device)
 
         # Initialize the optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=scheduler_factor, patience=scheduler_patience)
 
         train_dl = DataLoader(train_ds, batch_size = batch_size, shuffle = True)
         val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = False)
 
         # Call the train_model function with the current set of hyperparameters
-        val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
+        val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, scheduler, writer, args.n_epochs, args.device, args.patience, args.early_stopping)
         
         print(f"R2 Score: {val_r2:.4f} | MAE: {val_rmse:.4f}")
 
         # Update best model if current model is better
         if val_rmse < best_validation_score:
             best_validation_score = val_rmse
-            best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'dropout': dropout, 'num_layers': num_layers, 'validation_rmse': val_rmse, 'validation_r2': val_r2}
+            best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'dropout': dropout, 'num_layers': num_layers, 'scheduler_patience': scheduler_patience, 'scheduler_factor': scheduler_factor, 'validation_rmse': val_rmse, 'validation_r2': val_r2}
             best_model = model
     except:
         print("An error occurred during training. Skipping this trial.")

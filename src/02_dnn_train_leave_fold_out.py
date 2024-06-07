@@ -1,4 +1,4 @@
-# This is the final DNN model with leave-one-site-out cross-validation
+# DNN model with leave-fold-out cross-validation
 
 # Custom modules and functions
 from models.dnn_model import Model
@@ -6,9 +6,10 @@ from data.dataloader import gpp_dataset, compute_center
 from utils.utils import set_seed
 from utils.train_test_loops import train_loop, test_loop
 from utils.train_model import train_model
-from utils.train_test_split import train_test_split_chunks
+from utils.train_test_split import train_test_split_sites
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import r2_score, root_mean_squared_error
+import torch.optim as optim
 
 # Load necessary dependencies
 import argparse
@@ -19,40 +20,29 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import torch
 
-
-# Parse arguments 
-parser = argparse.ArgumentParser(description='CV DNN')
-
-parser.add_argument('-device', '--device', default='cuda:0' ,type=str,
-                      help='Indices of GPU to enable')
-
-parser.add_argument('-e', '--n_epochs', default=150, type=int,
-                      help='Number of training epochs (per site, for the leave-site-out CV)')
-
-parser.add_argument('-o', '--output_file', default='', type=str,
-                    help='File name to save output')
-
-parser.add_argument('-p', '--patience', default=10, type=int,
-                    help='Number of iterations (patience threshold) used for early stopping')
-
-parser.add_argument('-b', '--batch_size', default=16, type=int,
-                    help='Batch size for training the model')
-
-parser.add_argument('-d', '--hidden_dim', default=256, type=int,
-                    help='Hidden dimension of the DNN model')
-
-parser.add_argument('-l', '--learning_rate', default=0.01, type=float,
-                    help='Learning rate for the optimizer')
-
+parser = argparse.ArgumentParser()
+parser.add_argument('-device', '--device', default='cuda:0' ,type=str, help='Indices of GPU to enable')
+parser.add_argument('-e', '--n_epochs', default=150, type=int, help='Number of training epochs')
+parser.add_argument('-es', '--early_stopping', default=True, type=bool, help='Whether to use early stopping')
+parser.add_argument('-p', '--patience', default=10, type=int, help='Number of iterations (patience threshold) used for early stopping')
+parser.add_argument('-hd', '--hidden_size', default=32, type=int, help='Size of the first layer of the DNN model')
+parser.add_argument('-b', '--batch_size', default=32, type=int, help='Batch size for training the model')
+parser.add_argument('-lr', '--learning_rate', default=0.01, type=float, help='Learning rate for the optimizer')
+parser.add_argument('-sp', '--scheduler_patience', default=20, type=int, help='Patience for the learning rate scheduler')
+parser.add_argument('-sf', '--scheduler_factor', default=0.9, type=float, help='Factor for the learning rate scheduler')
 args = parser.parse_args()
 
-# Set random seeds for reproducibility
-set_seed(40)
-
-print("Starting leave-site-out on DNN model:")
+print("Starting leave-fold-out training and validation on DNN model:")
 print(f"> Device: {args.device}")
 print(f"> Epochs: {args.n_epochs}")
-print(f"> Early stopping after {args.patience} epochs without improvement")
+if args.early_stopping:
+    print(f"> Early stopping after {args.patience} epochs without improvement")
+print(f"> Hidden size (DNN): {args.hidden_size}")
+print(f"> Batch size: {args.batch_size}")
+print(f"> Learning rate: {args.learning_rate}")
+print(f"> Learning rate scheduler: ReduceLROnPlateau(patience={args.scheduler_patience}, factor={args.scheduler_factor})")
+
+set_seed(40)
 
 # Read data, including variables for stratified train-test split
 data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col='sitename', parse_dates=['TIMESTAMP'])
@@ -61,26 +51,28 @@ data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col='sitename', pars
 sites = data.index.unique()
 
 # Get data dimensions to match DNN model dimensions
-INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
+INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
 
-def generate_filename(base_path, n_epochs, patience, batch_size, learning_rate, hidden_units):
+def generate_filename(n_epochs, patience, batch_size, learning_rate, hidden_units):
         # Format learning rate to avoid using '.' in file names
         lr_formatted = f"{learning_rate:.0e}".replace('-', 'm').replace('.', 'p')
+        sf_formatted = f"{args.scheduler_factor:.0e}".replace('-', 'm').replace('.', 'p')
         
         # Get current date and time
         current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
         
         # Generate filename
         filename = (f"dnn_lfo_alldata_epochs{n_epochs}_patience{patience}"
-                        f"_bs{batch_size}_lr{lr_formatted}_hu{hidden_units}"
+                    f"_hidden{hidden_units}_batch{batch_size}_lr{lr_formatted}"
+                    f"_sp{args.scheduler_patience}_sf{sf_formatted}"
                         f"_{current_datetime}")
-        return f"{base_path}/{filename}"
+        return f"{filename}"
 
 # Constants
 base_path = "../models"
 
 # Generate filename
-filename = generate_filename(base_path, args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_dim)
+filename = generate_filename(args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_size)
 
 # Process and save predictions dataframe
 df_out = data.loc[:, ['TIMESTAMP','GPP_NT_VUT_REF']].copy()
@@ -112,7 +104,7 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     data_test = data[data.index.isin(test_sites)].copy()
 
     # Separate train-val split
-    data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data_train_val)
+    data_train, data_val, sites_train, sites_val = train_test_split_sites(data_train_val)
 
     # Calculate mean and standard deviation to normalize the data
     train_mean, train_std = compute_center(data_train)
@@ -127,32 +119,29 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
 
     ## Define the model to be trained
     # Initialise the DNN model, set layer dimensions to match data
-    model = Model(input_dim = INPUT_FEATURES, hidden_dim=args.hidden_dim).to(device = args.device)
+    model = Model(input_dim = INPUT_FEATURES, hidden_dim=args.hidden_size).to(device = args.device)
 
     # Initialise the optimiser
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=args.scheduler_patience, factor=args.scheduler_factor)
 
     # Initiate tensorboard logging instance for this site
-    if len(args.output_file) == 0:
-        writer = SummaryWriter(log_dir = f"../models/runs/dnn_lso_epochs_{args.n_epochs}_patience_{args.patience}/fold_{i+1}")
-    else:
-        writer = SummaryWriter(log_dir = f"../models/runs/{args.output_file}/fold_{i+1}")
+    writer = SummaryWriter(log_dir = f"{base_path}/runs/{filename}/fold_{i+1}")
+    if i == 0:
+        print(f"Logging to {base_path}/runs/{filename}")
+
 
     ## Train the model
 
     # Return best validation R2 score and the center used to normalize training data (repurposed for testing on leaf-out site)
     best_r2, best_rmse, model = train_model(train_dl, val_dl,
-                                                model, optimizer, writer,
+                                                model, optimizer, scheduler, writer,
                                                 args.n_epochs, args.device, args.patience)
     
     print(f"Validation scores for fold {i+1}: R2 = {best_r2:.4f} | RMSE = {best_rmse:.4f}")
 
     # Save model weights from best epoch
-    # if len(args.output_file)==0:
-    #     torch.save(model,
-    #         f = f"../models/weights/dnn_lso_epochs_{args.n_epochs}_patience_{args.patience}_fold_{i+1}.pt")
-    # else:
-    #     torch.save(model, f = f"../models/weights/{args.output_file}_fold_{i+1}.pt")
+    torch.save(model.state_dict(), f"{base_path}/weights/{filename}_fold_{i+1}.pt")
 
     # Stop logging, for this site
     writer.close()
@@ -163,9 +152,7 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     # dummy = data_test.groupby('sitename', group_keys=False).apply(lambda x: x.sample(frac=1))
     # print("Shuffling data for test site")
 
-    # Format pytorch dataset for the data loader
     test_ds = gpp_dataset(data_test, train_mean, train_std, test = False)
-
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = False)
 
     # Evaluate model on test set
@@ -190,14 +177,12 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     all_r2.append(r2_test)
     all_rmse.append(rmse_test)
 
-    print("")
-
 print(f"DNN - Mean R2: {np.mean(all_r2):.4f} | Mean RMSE: {np.mean(all_rmse):.4f}")
 
 for s in y_pred_sites.keys():
     df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = np.asarray(y_pred_sites.get(s))
 
-preds_filename = f"{filename}.csv".replace(base_path, f"{base_path}/preds")
+preds_filename = f"{base_path}/{filename}.csv"
 df_out.to_csv(preds_filename)
 
 print(f"Predictions saved to {preds_filename}")

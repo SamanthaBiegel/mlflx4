@@ -75,7 +75,7 @@ def compute_center(x):
 
     # Select numeric variables only, without GPP and aridity index
     x_num = x.select_dtypes(include = ['int', 'float'])
-    x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai', "chunk_id"])
+    x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai'])
 
     # Calculate mean and standard deviation, per column
     x_mean = x_num.mean()
@@ -100,7 +100,7 @@ class gpp_dataset(Dataset):
         
         # Select numeric variables only, without GPP
         x_num = x.select_dtypes(include = ['int', 'float'])
-        x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai',"chunk_id"])
+        x_num = x_num.drop(columns = ['GPP_NT_VUT_REF', 'ai'])
 
         # Center data, according to training data center
         x_centered = (x_num - train_mean)/train_std

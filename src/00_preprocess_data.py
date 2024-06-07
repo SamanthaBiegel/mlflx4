@@ -182,7 +182,7 @@ for site in df['sitename'].unique():
 
 # Impute missing values for VPD, wind speed, air pressure and daytime temperature
 df.loc[df["PA_F"] <= 0, "PA_F"] = np.nan
-for column in ["WS_F", "VPD_F_MDS", "PA_F"]:
+for column in ["WS_F", "VPD_F_MDS", "VPD_DAY_F_MDS", "PA_F"]:
     for site in df['sitename'].unique():
         mean_value = df.loc[df['sitename'] == site, column].mean()
         df.loc[(df['sitename'] == site) & df[column].isna(), column] = mean_value
@@ -202,12 +202,11 @@ df['PET'] = (0.408 * df['Delta'] * (df['NETRAD']*86400*1e-6) + \
                     (df['Gamma'] * (900 / (df['TA_F_MDS'] + 273)) * df['WS_F'] * (df['VPD_F_MDS']/10))) / \
                     (df['Delta'] + df['Gamma'] * (1 + 0.34 * df['WS_F']))
 site_totals = df.dropna(subset=["PET"]).groupby('sitename').agg({'PET': 'sum', 'P_F': 'sum'})
-site_totals['ai'] = site_totals['P_F'] / site_totals['PET']
+site_totals['ai'] = site_totals['PET'] / site_totals['P_F']
 df = pd.merge(df, site_totals[['ai']], on='sitename', how='left')
 df['ai'] = df['ai'].fillna(df['ai'].mean())
 
-df_ml = df[["TIMESTAMP", "TA_F_MDS", "TA_DAY_F_MDS", "SW_IN_F_MDS", "LW_IN_F_MDS", "VPD_F_MDS", "PA_F", "P_F", "WS_F", "FPAR", "co2_mlo", "ai", "GPP_NT_VUT_REF", "sitename"]].copy()
-df_ml.loc[:, 'chunk_id'] = np.nan
+df_ml = df[["TIMESTAMP", "TA_F_MDS", "TA_DAY_F_MDS", "SW_IN_F_MDS", "LW_IN_F_MDS", "VPD_DAY_F_MDS", "PA_F", "P_F", "WS_F", "FPAR", "co2_mlo", "ai", "GPP_NT_VUT_REF", "sitename"]].copy()
 
 print("Total number of sites: ", len(df_ml.sitename.unique()))
 

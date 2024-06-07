@@ -3,7 +3,7 @@ from models.dnn_model import Model
 from utils.utils import set_seed
 from utils.train_model import train_model
 from data.dataloader import gpp_dataset, compute_center
-from utils.train_test_split import train_test_split_chunks
+from utils.train_test_split import train_test_split_sites
 from torch.utils.data import DataLoader
 
 # Load necessary dependencies
@@ -36,6 +36,8 @@ data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col="sitename", pars
 batch_sizes_list = [16, 32, 64, 128, 256]
 hidden_dim_list = [32, 64, 128, 256, 512]
 learning_rates_list = [1e-1, 5e-2, 1e-2, 1e-3, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
+scheduler_patience_list = [10, 20, 30]
+scheduler_factor_list = [0.1, 0.5, 0.9]
 
 best_model = None
 best_hyperparameters = None
@@ -44,10 +46,10 @@ best_validation_score = np.inf
 # Tensorboard writer setup (optional)
 writer = SummaryWriter(log_dir=f"../models/runs/hyperparameter_tuning")
 
-INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai', 'chunk_id']).shape[1]
+INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
 
 # Separate train-val split
-data_train, data_val, chunks_train, chunks_val = train_test_split_chunks(data)
+data_train, data_val, sites_train, sites_val = train_test_split_sites(data)
 
 # Calculate mean and standard deviation to normalize the data
 train_mean, train_std = compute_center(data_train)
@@ -61,27 +63,30 @@ for i in tqdm(range(args.num_trials)):
     batch_size = int(np.random.choice(batch_sizes_list))
     hidden_dim = np.random.choice(hidden_dim_list)
     lr = np.random.choice(learning_rates_list)
+    scheduler_patience = np.random.choice(scheduler_patience_list)
+    scheduler_factor = np.random.choice(scheduler_factor_list)
 
-    print(f"Trial {i+1}/{args.num_trials} | Batch Size: {batch_size} | Hidden Units: {hidden_dim} | Learning Rate: {lr}")
+    print(f"Trial {i+1}/{args.num_trials} | Batch Size: {batch_size} | Hidden Units: {hidden_dim} | Learning Rate: {lr} | Scheduler Patience: {scheduler_patience} | Scheduler Factor: {scheduler_factor}")
 
     # Initialize the model
     model = Model(input_dim=INPUT_FEATURES, hidden_dim=hidden_dim).to(device = args.device)
 
     # Initialize the optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=scheduler_factor, patience=scheduler_patience)
 
     train_dl = DataLoader(train_ds, batch_size = batch_size, shuffle = True)
     val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = False)
 
     # Call the train_model function with the current set of hyperparameters
-    val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, writer, args.n_epochs, args.device, args.patience)
+    val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, scheduler, writer, args.n_epochs, args.device, args.patience)
     
     print(f"R2 Score: {val_r2:.4f} | RMSE: {val_rmse:.4f}")
 
     # Update best model if current model is better
     if val_rmse < best_validation_score:
         best_validation_score = val_rmse
-        best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'validation_rmse': val_rmse, 'validation_r2': val_r2}
+        best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'scheduler_patience': scheduler_patience, 'scheduler_factor': scheduler_factor, 'validation_rmse': val_rmse, 'validation_r2': val_r2}
         best_model = model
 
 # Close Tensorboard writer
