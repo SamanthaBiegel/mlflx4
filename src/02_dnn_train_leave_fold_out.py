@@ -22,14 +22,14 @@ import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-device', '--device', default='cuda:0' ,type=str, help='Indices of GPU to enable')
-parser.add_argument('-e', '--n_epochs', default=150, type=int, help='Number of training epochs')
+parser.add_argument('-e', '--n_epochs', default=50, type=int, help='Number of training epochs')
 parser.add_argument('-es', '--early_stopping', default=True, type=bool, help='Whether to use early stopping')
-parser.add_argument('-p', '--patience', default=10, type=int, help='Number of iterations (patience threshold) used for early stopping')
-parser.add_argument('-hd', '--hidden_size', default=32, type=int, help='Size of the first layer of the DNN model')
-parser.add_argument('-b', '--batch_size', default=32, type=int, help='Batch size for training the model')
+parser.add_argument('-p', '--patience', default=50, type=int, help='Number of iterations (patience threshold) used for early stopping')
+parser.add_argument('-hd', '--hidden_size', default=128, type=int, help='Size of the first layer of the DNN model')
+parser.add_argument('-b', '--batch_size', default=256, type=int, help='Batch size for training the model')
 parser.add_argument('-lr', '--learning_rate', default=0.01, type=float, help='Learning rate for the optimizer')
-parser.add_argument('-sp', '--scheduler_patience', default=20, type=int, help='Patience for the learning rate scheduler')
-parser.add_argument('-sf', '--scheduler_factor', default=0.9, type=float, help='Factor for the learning rate scheduler')
+parser.add_argument('-sp', '--scheduler_patience', default=30, type=int, help='Patience for the learning rate scheduler')
+parser.add_argument('-sf', '--scheduler_factor', default=0.1, type=float, help='Factor for the learning rate scheduler')
 args = parser.parse_args()
 
 print("Starting leave-fold-out training and validation on DNN model:")
@@ -74,12 +74,6 @@ base_path = "../models"
 # Generate filename
 filename = generate_filename(args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_size)
 
-# Process and save predictions dataframe
-df_out = data.loc[:, ['TIMESTAMP','GPP_NT_VUT_REF']].copy()
-
-# Initialise data.frame to store GPP predictions, from the trained DNN model
-y_pred_sites = {}
-
 # Group by 'sitename' and calculate mean temperature and aridity
 grouped = data.groupby('sitename').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
 
@@ -94,6 +88,8 @@ grouped['combined_target'] = grouped['TA_F_MDS_bins'] + '_' + grouped['ai_bins']
 
 all_r2 = []
 all_rmse = []
+
+dfs_out = []
 
 kf = StratifiedKFold(n_splits=5, shuffle=True)
 for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['combined_target'])):
@@ -129,7 +125,6 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     writer = SummaryWriter(log_dir = f"{base_path}/runs/{filename}/fold_{i+1}")
     if i == 0:
         print(f"Logging to {base_path}/runs/{filename}")
-
 
     ## Train the model
 
@@ -169,8 +164,7 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     r2_test = r2_score(y_true = data_test_eval["GPP_NT_VUT_REF"], y_pred = data_test_eval["gpp_pred"])
     rmse_test = root_mean_squared_error(y_true = data_test_eval["GPP_NT_VUT_REF"], y_pred = data_test_eval["gpp_pred"])
 
-    for j, s in enumerate(data_test.index.unique()):
-        y_pred_sites[s] = y_pred[j]
+    dfs_out.append(data_test_eval[['TIMESTAMP', 'GPP_NT_VUT_REF', 'gpp_pred']])
 
     print(f"Test scores for fold {i+1}: R2 = {r2_test:.4f} | RMSE = {rmse_test:.4f}")
 
@@ -179,10 +173,9 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
 
 print(f"DNN - Mean R2: {np.mean(all_r2):.4f} | Mean RMSE: {np.mean(all_rmse):.4f}")
 
-for s in y_pred_sites.keys():
-    df_out.loc[[i == s for i in df_out.index], 'gpp_dnn'] = np.asarray(y_pred_sites.get(s))
+df_out = pd.concat(dfs_out)
 
-preds_filename = f"{base_path}/{filename}.csv"
+preds_filename = f"{base_path}/preds/{filename}.csv"
 df_out.to_csv(preds_filename)
 
 print(f"Predictions saved to {preds_filename}")
