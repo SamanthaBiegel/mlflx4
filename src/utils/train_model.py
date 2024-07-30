@@ -1,14 +1,15 @@
 # This file contains the main training function
 
-# Dependencies
 import numpy as np
-
-# Import functions
 from data.dataloader import *
 from utils.train_test_loops import *
 from utils.train_test_split import train_test_split_sites
+from utils.evaluate_model import evaluate_model
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import copy
+
+
 def train_model(train_dl, val_dl, model, optimizer, scheduler, writer, n_epochs, DEVICE, patience, early_stopping = True):
     """
     Trains a PyTorch model, using a train-validation split, with training on all training sites per epoch
@@ -41,23 +42,24 @@ def train_model(train_dl, val_dl, model, optimizer, scheduler, writer, n_epochs,
 
         # Evaluate model on val set
         val_loss, y_pred = test_loop(val_dl, model, DEVICE)
-        r2_val, rmse_val = evaluate_model(val_dl, y_pred)
+        val_metrics, _ = evaluate_model(val_dl, y_pred)
 
         scheduler.step(val_loss)
 
         # Log tensorboard values
         writer.add_scalar("mse_loss/train", train_loss, epoch)
         writer.add_scalar("mse_loss/validation", val_loss, epoch)
-        writer.add_scalar("r2_mean/validation", r2_val, epoch)
-        writer.add_scalar("rmse/validation", rmse_val, epoch)
+        writer.add_scalar("r2_mean/validation", val_metrics["r2"], epoch)
+        writer.add_scalar("rmse/validation", val_metrics["rmse"], epoch)
+        writer.add_scalar("nmae/validation", val_metrics["nmae"], epoch)
+        writer.add_scalar("abs_bias/validation", val_metrics["abs_bias"], epoch)
 
         if early_stopping:
             # Save the model from the best epoch, based on the validation loss
             if val_loss <= best_loss:
                 best_loss = val_loss
                 best_model = copy.deepcopy(model.state_dict())
-                best_r2 = r2_val
-                best_rmse = rmse_val
+                best_metrics = val_metrics
                 patience_counter = 0
             else:
                 patience_counter += 1
@@ -66,23 +68,10 @@ def train_model(train_dl, val_dl, model, optimizer, scheduler, writer, n_epochs,
             if patience_counter >= patience:
                 print(f"Early stopping at epoch {epoch}. No improvement in validation loss for {patience} epochs.")
                 model.load_state_dict(best_model)
-                return best_r2, best_rmse, model
+                return best_metrics, model
 
-    return r2_val, rmse_val, model
+    return best_metrics, model
 
-def evaluate_model(val_dl, y_pred):
-    data_val_eval = val_dl.dataset.data.copy()
-    data_val_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
-
-    nan_y_true = data_val_eval["GPP_NT_VUT_REF"].isna()
-    nan_y_pred = data_val_eval["gpp_pred"].isna()
-
-    data_val_eval = data_val_eval[~(nan_y_true | nan_y_pred)]
-
-    r2_val = r2_score(y_true=data_val_eval["GPP_NT_VUT_REF"], y_pred=data_val_eval["gpp_pred"])
-    rmse_val = np.sqrt(np.mean((data_val_eval["GPP_NT_VUT_REF"] - data_val_eval["gpp_pred"]) ** 2))
-
-    return r2_val, rmse_val
 
 def train_model_cat(data, data_cat, model, optimizer, writer, n_epochs, DEVICE, patience):
     """

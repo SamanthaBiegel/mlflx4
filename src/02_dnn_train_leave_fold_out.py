@@ -3,10 +3,11 @@
 # Custom modules and functions
 from models.dnn_model import Model
 from data.dataloader import gpp_dataset, compute_center
-from utils.utils import set_seed
-from utils.train_test_loops import train_loop, test_loop
+from utils.utils import set_seed, generate_filename
+from utils.train_test_loops import test_loop
 from utils.train_model import train_model
-from utils.train_test_split import train_test_split_sites
+from utils.evaluate_model import evaluate_model
+from utils.train_test_split import train_test_split_sites, add_stratification_target
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import r2_score, root_mean_squared_error
 import torch.optim as optim
@@ -22,14 +23,15 @@ import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-device', '--device', default='cuda:0' ,type=str, help='Indices of GPU to enable')
-parser.add_argument('-e', '--n_epochs', default=50, type=int, help='Number of training epochs')
+parser.add_argument('-e', '--n_epochs', default=1000, type=int, help='Number of training epochs')
 parser.add_argument('-es', '--early_stopping', default=True, type=bool, help='Whether to use early stopping')
-parser.add_argument('-p', '--patience', default=50, type=int, help='Number of iterations (patience threshold) used for early stopping')
+parser.add_argument('-p', '--patience', default=100, type=int, help='Number of iterations (patience threshold) used for early stopping')
 parser.add_argument('-hd', '--hidden_size', default=128, type=int, help='Size of the first layer of the DNN model')
 parser.add_argument('-b', '--batch_size', default=256, type=int, help='Batch size for training the model')
 parser.add_argument('-lr', '--learning_rate', default=0.01, type=float, help='Learning rate for the optimizer')
 parser.add_argument('-sp', '--scheduler_patience', default=30, type=int, help='Patience for the learning rate scheduler')
 parser.add_argument('-sf', '--scheduler_factor', default=0.1, type=float, help='Factor for the learning rate scheduler')
+parser.add_argument('-w', '--weight_decay', default=0, type=float, help='Weight decay for the optimizer')
 args = parser.parse_args()
 
 print("Starting leave-fold-out training and validation on DNN model:")
@@ -41,58 +43,31 @@ print(f"> Hidden size (DNN): {args.hidden_size}")
 print(f"> Batch size: {args.batch_size}")
 print(f"> Learning rate: {args.learning_rate}")
 print(f"> Learning rate scheduler: ReduceLROnPlateau(patience={args.scheduler_patience}, factor={args.scheduler_factor})")
+print(f"> Weight decay: {args.weight_decay}")
 
 set_seed(40)
 
 # Read data, including variables for stratified train-test split
 data = pd.read_csv('../data/processed/fdk_v3_ml.csv', index_col='sitename', parse_dates=['TIMESTAMP'])
 
-# Create list of sites for leave-site-out cross validation
-sites = data.index.unique()
-
 # Get data dimensions to match DNN model dimensions
 INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
-
-def generate_filename(n_epochs, patience, batch_size, learning_rate, hidden_units):
-        # Format learning rate to avoid using '.' in file names
-        lr_formatted = f"{learning_rate:.0e}".replace('-', 'm').replace('.', 'p')
-        sf_formatted = f"{args.scheduler_factor:.0e}".replace('-', 'm').replace('.', 'p')
-        
-        # Get current date and time
-        current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
-        
-        # Generate filename
-        filename = (f"dnn_lfo_alldata_epochs{n_epochs}_patience{patience}"
-                    f"_hidden{hidden_units}_batch{batch_size}_lr{lr_formatted}"
-                    f"_sp{args.scheduler_patience}_sf{sf_formatted}"
-                        f"_{current_datetime}")
-        return f"{filename}"
+print(f"Number of input features: {INPUT_FEATURES}")
 
 # Constants
 base_path = "../models"
 
 # Generate filename
-filename = generate_filename(args.n_epochs, args.patience, args.batch_size, args.learning_rate, args.hidden_size)
+hparams = {"n_epochs": args.n_epochs, "early_stopping": args.early_stopping, "patience": args.patience, "hidden_units": args.hidden_size, "batch_size": args.batch_size, "learning_rate": args.learning_rate, "scheduler_patience": args.scheduler_patience, "scheduler_factor": args.scheduler_factor}
+filename = generate_filename("dnn", "lfo", hparams)
 
-# Group by 'sitename' and calculate mean temperature and aridity
-grouped = data.groupby('sitename').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
+grouped = add_stratification_target(data)
 
-grouped = grouped.dropna(subset=["ai"])
-
-# Discretize numerical columns into bins
-grouped['TA_F_MDS_bins'] = pd.qcut(grouped['TA_F_MDS'], 2, labels=False).astype(str)
-grouped['ai_bins'] = pd.qcut(grouped['ai'], 2, labels=False).astype(str)
-
-# Combine discretized columns into a single categorical column for stratification
-grouped['combined_target'] = grouped['TA_F_MDS_bins'] + '_' + grouped['ai_bins']
-
-all_r2 = []
-all_rmse = []
-
+all_metrics = {'r2': [], 'rmse': [], 'nmae': [], 'abs_bias': []}
 dfs_out = []
 
 kf = StratifiedKFold(n_splits=5, shuffle=True)
-for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['combined_target'])):
+for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['stratify'])):
     train_sites = grouped.index.unique()[train_index]
     test_sites = grouped.index.unique()[test_index]
     
@@ -108,10 +83,10 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     # Format pytorch dataset for the data loader
     # Normalize training and validation data according to the training center
     train_ds = gpp_dataset(data_train, train_mean, train_std)
-    val_ds = gpp_dataset(data_val, train_mean, train_std)
+    val_ds = gpp_dataset(data_val, train_mean, train_std, test=True)
 
     train_dl = DataLoader(train_ds, batch_size = args.batch_size, shuffle = True)
-    val_dl = DataLoader(val_ds, batch_size = args.batch_size, shuffle = False)
+    val_dl = DataLoader(val_ds, batch_size = 1, shuffle = False)
 
     ## Define the model to be trained
     # Initialise the DNN model, set layer dimensions to match data
@@ -129,11 +104,11 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     ## Train the model
 
     # Return best validation R2 score and the center used to normalize training data (repurposed for testing on leaf-out site)
-    best_r2, best_rmse, model = train_model(train_dl, val_dl,
+    best_val_metrics, model = train_model(train_dl, val_dl,
                                                 model, optimizer, scheduler, writer,
                                                 args.n_epochs, args.device, args.patience)
     
-    print(f"Validation scores for fold {i+1}: R2 = {best_r2:.4f} | RMSE = {best_rmse:.4f}")
+    print(f"Validation scores for fold {i+1}: R2 = {best_val_metrics['r2']:.4f} | RMSE = {best_val_metrics['rmse']:.4f} | NMAE = {best_val_metrics['nmae']:.4f} | Abs Bias = {best_val_metrics['abs_bias']:.4f}")
 
     # Save model weights from best epoch
     torch.save(model.state_dict(), f"{base_path}/weights/{filename}_fold_{i+1}.pt")
@@ -147,31 +122,24 @@ for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['c
     # dummy = data_test.groupby('sitename', group_keys=False).apply(lambda x: x.sample(frac=1))
     # print("Shuffling data for test site")
 
-    test_ds = gpp_dataset(data_test, train_mean, train_std, test = False)
+    test_ds = gpp_dataset(data_test, train_mean, train_std, test = True)
     test_dl = DataLoader(test_ds, batch_size = 1, shuffle = False)
 
     # Evaluate model on test set
     test_loss, y_pred = test_loop(test_dl, model, args.device)
 
-    data_test_eval = data_test.copy()
-    data_test_eval['gpp_pred'] = [item for sublist in y_pred for item in sublist]
-
-    # Filter inputs for nans
-    nan_y_true = data_test_eval["GPP_NT_VUT_REF"].isna()
-    nan_y_pred = data_test_eval["gpp_pred"].isna()
-    data_test_eval = data_test_eval[~(nan_y_true | nan_y_pred)]
-
-    r2_test = r2_score(y_true = data_test_eval["GPP_NT_VUT_REF"], y_pred = data_test_eval["gpp_pred"])
-    rmse_test = root_mean_squared_error(y_true = data_test_eval["GPP_NT_VUT_REF"], y_pred = data_test_eval["gpp_pred"])
+    test_metrics, data_test_eval = evaluate_model(test_dl, y_pred)
 
     dfs_out.append(data_test_eval[['TIMESTAMP', 'GPP_NT_VUT_REF', 'gpp_pred']])
 
-    print(f"Test scores for fold {i+1}: R2 = {r2_test:.4f} | RMSE = {rmse_test:.4f}")
+    print(f"Test scores for fold {i+1}: R2 = {test_metrics['r2']:.4f} | RMSE = {test_metrics['rmse']:.4f} | NMAE = {test_metrics['nmae']:.4f} | Abs Bias = {test_metrics['abs_bias']:.4f}")
 
-    all_r2.append(r2_test)
-    all_rmse.append(rmse_test)
+    for key in test_metrics.keys():
+        all_metrics[key].append(test_metrics[key])
 
-print(f"DNN - Mean R2: {np.mean(all_r2):.4f} | Mean RMSE: {np.mean(all_rmse):.4f}")
+    print("")
+
+print(f"DNN - Mean R2: {np.mean(all_metrics['r2']):.4f} | Mean RMSE: {np.mean(all_metrics['rmse']):.4f} | Mean NMAE: {np.mean(all_metrics['nmae']):.4f} | Mean Abs Bias: {np.mean(all_metrics['abs_bias']):.4f}")
 
 df_out = pd.concat(dfs_out)
 

@@ -180,8 +180,13 @@ docs/
 
 # tensorflow runs
 models/runs/
+models/weights/
+models/preds/
 events.out.tfevents.*
 
 df_imputed.csv
+fdk_v3_ml.csv
 
 *.ipynb
+
+old/

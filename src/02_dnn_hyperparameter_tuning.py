@@ -2,6 +2,7 @@
 from models.dnn_model import Model
 from utils.utils import set_seed
 from utils.train_model import train_model
+from utils.train_test_split import add_stratification_target
 from data.dataloader import gpp_dataset, compute_center
 from torch.utils.data import DataLoader
 
@@ -38,9 +39,8 @@ hidden_dim_list = [32, 64, 128, 256, 512]
 learning_rates_list = [1e-1, 5e-2, 1e-2, 1e-3, 1e-4, 3e-4, 5e-4, 7e-4, 9e-4]
 scheduler_patience_list = [10, 20, 30]
 scheduler_factor_list = [0.1, 0.5, 0.9]
+weight_decay_list = [0.01, 0.001, 0.0001, 0.00001]
 
-best_model = None
-best_hyperparameters = None
 best_validation_score = np.inf
 
 # Tensorboard writer setup (optional)
@@ -48,36 +48,28 @@ writer = SummaryWriter(log_dir=f"../models/runs/hyperparameter_tuning")
 
 INPUT_FEATURES = data.select_dtypes(include = ['int', 'float']).drop(columns = ['GPP_NT_VUT_REF', 'ai']).shape[1]
 
-# Group by 'sitename' and calculate mean temperature and aridity
-grouped = data.groupby('sitename').agg({'TA_F_MDS': 'mean', 'ai': 'first'})
-grouped = grouped.dropna(subset=["ai"])
+grouped = add_stratification_target(data)
 
-# Discretize numerical columns into bins
-grouped['TA_F_MDS_bins'] = pd.qcut(grouped['TA_F_MDS'], 2, labels=False).astype(str)
-grouped['ai_bins'] = pd.qcut(grouped['ai'], 2, labels=False).astype(str)
-
-# Combine discretized columns into a single categorical column for stratification
-grouped['combined_target'] = grouped['TA_F_MDS_bins'] + '_' + grouped['ai_bins']
-
-all_r2 = []
-all_rmse = []
+all_metrics = {'r2': [], 'rmse': [], 'nmae': [], 'abs_bias': []}
 
 kf = StratifiedKFold(n_splits=5, shuffle=True)
 
 for j in tqdm(range(args.num_trials)):
     try:
-        batch_size = int(np.random.choice(batch_sizes_list))
-        hidden_dim = np.random.choice(hidden_dim_list)
-        lr = np.random.choice(learning_rates_list)
-        scheduler_patience = np.random.choice(scheduler_patience_list)
-        scheduler_factor = np.random.choice(scheduler_factor_list)
+        hparams = {
+            'batch_size': int(np.random.choice(batch_sizes_list)),
+            'hidden_dim': int(np.random.choice(hidden_dim_list)),
+            'lr': np.random.choice(learning_rates_list),
+            'scheduler_patience': int(np.random.choice(scheduler_patience_list)),
+            'scheduler_factor': np.random.choice(scheduler_factor_list),
+            'weight_decay': np.random.choice(weight_decay_list)
+        }
 
-        print(f"Trial {j+1}/{args.num_trials} | Batch Size: {batch_size} | Hidden Units: {hidden_dim} | Learning Rate: {lr} | Scheduler Patience: {scheduler_patience} | Scheduler Factor: {scheduler_factor}")
+        print(f"Trial {j+1}/{args.num_trials} | Hyperparameters: {hparams}")
         
-        fold_r2 = []
-        fold_rmse = []
+        trial_metrics = {'r2': [], 'rmse': [], 'nmae': [], 'abs_bias': []}
 
-        for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['combined_target'])):
+        for i, (train_index, test_index) in enumerate(kf.split(grouped.index, grouped['stratify'])):
             # Separate train-val split
             train_sites = grouped.index[train_index]
             val_sites = grouped.index[test_index]
@@ -91,36 +83,33 @@ for j in tqdm(range(args.num_trials)):
             # Format pytorch dataset for the data loader
             # Normalize training and validation data according to the training center
             train_ds = gpp_dataset(data_train, train_mean, train_std)
-            val_ds = gpp_dataset(data_val, train_mean, train_std)
+            val_ds = gpp_dataset(data_val, train_mean, train_std, test=True)
 
             # Initialize the model
-            model = Model(input_dim=INPUT_FEATURES, hidden_dim=hidden_dim).to(device = args.device)
+            model = Model(input_dim=INPUT_FEATURES, hidden_dim=hparams['hidden_dim']).to(args.device)
 
             # Initialize the optimizer
-            optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=scheduler_factor, patience=scheduler_patience)
+            optimizer = torch.optim.Adam(model.parameters(), lr=hparams['lr'], weight_decay=hparams['weight_decay'])
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=hparams['scheduler_factor'], patience=hparams['scheduler_patience'])
 
-            train_dl = DataLoader(train_ds, batch_size = batch_size, shuffle = True)
-            val_dl = DataLoader(val_ds, batch_size = batch_size, shuffle = False)
+            train_dl = DataLoader(train_ds, batch_size = hparams['batch_size'], shuffle = True)
+            val_dl = DataLoader(val_ds, batch_size = 1, shuffle = False)
 
             # Call the train_model function with the current set of hyperparameters
-            val_r2, val_rmse, model = train_model(train_dl, val_dl, model, optimizer, scheduler, writer, args.n_epochs, args.device, args.patience, args.early_stopping)
+            val_metrics, model = train_model(train_dl, val_dl, model, optimizer, scheduler, writer, args.n_epochs, args.device, args.patience, args.early_stopping)
             
-            print(f"Fold {i+1}/5 | R2 Score: {val_r2:.4f} | RMSE: {val_rmse:.4f}")
+            print(f"Fold {i+1}/5 | R2 Score: {val_metrics['r2']:.4f} | RMSE: {val_metrics['rmse']:.4f} | NMAE: {val_metrics['nmae']:.4f} | Abs Bias: {val_metrics['abs_bias']:.4f}")
 
-            fold_r2.append(val_r2)
-            fold_rmse.append(val_rmse)
+            for key in val_metrics.keys():
+                trial_metrics[key].append(val_metrics[key])
 
-        # Average the scores across all folds
-        mean_r2 = np.mean(fold_r2)
-        mean_rmse = np.mean(fold_rmse)
-
-        print(f"Trial {j+1}/{args.num_trials} | Mean R2 Score: {mean_r2:.4f} | Mean RMSE: {mean_rmse:.4f}")
+        print(f"Trial {j+1}/{args.num_trials} | Mean R2 Score: {np.mean(trial_metrics['r2']):.4f} | Mean RMSE: {np.mean(trial_metrics['rmse']):.4f} | Mean NMAE: {np.mean(trial_metrics['nmae']):.4f} | Mean Abs Bias: {np.mean(trial_metrics['abs_bias']):.4f}")
 
         # Update best model if current model is better
+        mean_rmse = np.mean(trial_metrics['rmse'])
         if mean_rmse < best_validation_score:
             best_validation_score = mean_rmse
-            best_hyperparameters = {'batch_size': batch_size, 'hidden_units': hidden_dim, 'learning_rate': lr, 'scheduler_patience': scheduler_patience, 'scheduler_factor': scheduler_factor, 'validation_rmse': mean_rmse, 'validation_r2': mean_r2}
+            best_hyperparameters = hparams
             best_model = model
     except:
         print("An error occurred during training. Skipping this trial.")

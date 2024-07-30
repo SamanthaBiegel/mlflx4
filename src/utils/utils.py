@@ -5,6 +5,8 @@ import numpy as np
 import torch
 import random
 import os
+from sklearn.metrics import root_mean_squared_error
+import datetime
 
 # Define a function to set random seeds for reproducibility
 def set_seed(seed: int = 42):
@@ -25,3 +27,17 @@ def set_seed(seed: int = 42):
     
     # Ensure deterministic behavior for CuDNN (CuDNN is a GPU-accelerated library)
     torch.backends.cudnn.deterministic = True
+
+
+def generate_filename(model, desc, hparams):
+        # For all hparams replace . with p
+        hparams_formatted = {k: f"{v}".replace('-', 'm').replace('.', 'p') for k, v in hparams.items()}
+        
+        # Get current date and time
+        current_datetime = datetime.datetime.now().strftime("%d%m%Y_%H%M")
+        
+        # Generate filename
+        filename = (f"{model}_{desc}_"
+                        f"{'_'.join([f'{k}{v}' for k, v in hparams_formatted.items()])}"
+                        f"_{current_datetime}")
+        return f"{filename}"

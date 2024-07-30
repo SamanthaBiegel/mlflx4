@@ -15,7 +15,7 @@ def custom_loss(outputs, targets, masks):
     masked_loss = loss * masks  # Apply the mask
     return masked_loss.sum() / masks.sum()  # Normalize by the number of non-padded values
 
-def train_loop(dataloader, model, optimizer, DEVICE, writer, steps):
+def train_loop(dataloader, model, optimizer, DEVICE, writer, steps, cat=False):
 
     # Initiate training loss, to aggregate over sites
     train_loss = 0.0
@@ -25,12 +25,13 @@ def train_loop(dataloader, model, optimizer, DEVICE, writer, steps):
 
     n_batches = len(dataloader)
 
+    loss = nn.MSELoss()
+
     # Loop over all training sites
-    for x, y, padding_mask in dataloader:
+    for x, y in dataloader:
         # Send tensors to the correct device
         x = x.to(DEVICE)
         y = y.to(DEVICE)
-        padding_mask = padding_mask.to(DEVICE)
         
         # Perform forward pass for predictions
         y_pred = model(x)
@@ -39,10 +40,10 @@ def train_loop(dataloader, model, optimizer, DEVICE, writer, steps):
         optimizer.zero_grad()
 
         # Compute MSE loss between GPP and predicted GPP
-        loss = custom_loss(y_pred.flatten(), y.flatten(), padding_mask.flatten())
+        output = loss(y_pred.flatten(), y.flatten())
 
         # Backpropagate the gradients through the model
-        loss.backward()
+        output.backward()
 
         nn.utils.clip_grad_norm_(model.parameters(), 1.0)
 
@@ -55,7 +56,7 @@ def train_loop(dataloader, model, optimizer, DEVICE, writer, steps):
         optimizer.step()
 
         # Accumulate the training loss over sites
-        train_loss += loss.item()
+        train_loss += output.item()
 
     # Set model to evaluation mode (deactivate dropout, etc)
     model.eval()
@@ -120,31 +121,26 @@ def test_loop(dataloader, model, DEVICE):
 
     all_y_pred = []
 
+    loss = nn.MSELoss()
+    count_preds = 0
+
     # Stop computing gradients during the following code chunk
     with torch.no_grad():
-
         # Get testing data from dataloader
-        for x, y, padding_mask in dataloader:
+        for x, y in dataloader:
 
             # Send tensors to the correct device
             x = x.to(DEVICE)
             y = y.to(DEVICE)
-            padding_mask = padding_mask.to(DEVICE)
 
             # Perform forward pass for predictions
             y_pred = model(x)
 
-            # Squeeze empty tensor dimensions to match y and y_pred
-            y = y.squeeze()
-            y_pred = y_pred.squeeze()
-
             # Compute test MSE on testing data
-            test_loss += custom_loss(y_pred.flatten(), y.flatten(), padding_mask.flatten())
+            test_loss += loss(y_pred.squeeze().flatten(), y.squeeze().flatten())
+            count_preds += y_pred.squeeze().flatten().shape[0]
 
-            padding_mask = padding_mask.detach().cpu().numpy()
-            y_pred = y_pred.detach().cpu().numpy()
-
-            all_y_pred.append(y_pred[padding_mask.squeeze()])            
+            all_y_pred.append(y_pred.squeeze().detach().cpu().numpy())       
 
     # Return computed testing loss
     return test_loss/n_batches, all_y_pred
